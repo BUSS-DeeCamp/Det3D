@@ -2,7 +2,6 @@ import os.path as osp
 import warnings
 import numpy as np
 from functools import reduce
-from pypcd import pypcd
 
 import pycocotools.mask as maskUtils
 

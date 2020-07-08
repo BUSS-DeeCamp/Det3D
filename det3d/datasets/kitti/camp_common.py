@@ -3,7 +3,6 @@ import pickle
 import re
 import numpy as np
 import os.path as osp
-from pypcd import pypcd
 from IPython import embed
 
 from collections import OrderedDict
