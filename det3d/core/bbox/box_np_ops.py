@@ -402,7 +402,7 @@ def rotation_points_single_angle(points, angle, axis=0):
         )
     elif axis == 2 or axis == -1:
         rot_mat_T = np.array(
-            [[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0], [0, 0, 1]],
+            [[rot_cos, rot_sin, 0], [-rot_sin, rot_cos, 0], [0, 0, 1]],
             dtype=points.dtype,
         )
     elif axis == 0:

@@ -48,7 +48,10 @@ class Preprocess(object):
             self.gt_points_drop = (cfg.gt_drop_percentage,)
             self.remove_points_after_sample = cfg.remove_points_after_sample
             self.class_names = cfg.class_names
-            self.db_sampler = build_dbsampler(cfg.db_sampler)
+            if getattr(cfg, 'db_sampler', None):
+                self.db_sampler = build_dbsampler(cfg.db_sampler)
+            else:
+                self.db_sampler = None
             self.npoints = cfg.get("npoints", -1)
             self.random_select = cfg.get("random_select", False)
 
@@ -65,7 +68,6 @@ class Preprocess(object):
 
         if self.mode == "train":
             anno_dict = res["lidar"]["annotations"]
-
             gt_dict = {
                 "gt_boxes": anno_dict["boxes"],
                 "gt_names": np.array(anno_dict["names"]).reshape(-1),
@@ -180,16 +182,16 @@ class Preprocess(object):
                         points = points[np.logical_not(masks.any(-1))]
 
                     points = np.concatenate([sampled_points, points], axis=0)
-            prep.noise_per_object_v3_(
-                gt_dict["gt_boxes"],
-                points,
-                gt_boxes_mask,
-                rotation_perturb=self.gt_rotation_noise,
-                center_noise_std=self.gt_loc_noise_std,
-                global_random_rot_range=self.global_random_rot_range,
-                group_ids=None,
-                num_try=100,
-            )
+            # prep.noise_per_object_v3_(
+            #     gt_dict["gt_boxes"],
+            #     points,
+            #     gt_boxes_mask,
+            #     rotation_perturb=self.gt_rotation_noise,
+            #     center_noise_std=self.gt_loc_noise_std,
+            #     global_random_rot_range=self.global_random_rot_range,
+            #     group_ids=None,
+            #     num_try=100,
+            # )
 
             _dict_select(gt_dict, gt_boxes_mask)
 

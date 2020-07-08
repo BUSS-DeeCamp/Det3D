@@ -4,6 +4,9 @@ import re
 from collections import OrderedDict, defaultdict
 from functools import partial
 
+import sys
+sys.path.append('/home/ma-user/work/workspace/baseline/apex')
+
 import apex
 import numpy as np
 import torch

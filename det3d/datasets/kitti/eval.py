@@ -40,20 +40,14 @@ def get_thresholds(scores: np.ndarray, num_gt, num_sample_pts=41):
 def clean_data(gt_anno, dt_anno, current_class, difficulty):
     CLASS_NAMES = [
         "car",
-        "pedestrian",
-        "bicycle",
         "truck",
-        "bus",
-        "trailer",
-        "construction_vehicle",
-        "motorcycle",
-        "barrier",
-        "traffic_cone",
+        "tricar",
         "cyclist",
+        "pedestrian",
     ]
-    MIN_HEIGHT = [40, 25, 25]
-    MAX_OCCLUSION = [0, 1, 2]
-    MAX_TRUNCATION = [0.15, 0.3, 0.5]
+    MIN_HEIGHT = [-1000, -1000, -1000]
+    MAX_OCCLUSION = [10, 10, 10]
+    MAX_TRUNCATION = [10, 10, 10]
     dc_bboxes, ignored_gt, ignored_dt = [], [], []
     current_cls_name = CLASS_NAMES[current_class].lower()
     num_gt = len(gt_anno["name"])
@@ -202,7 +196,6 @@ def eval_class_v3(
     num_examples = len(gt_annos)
     split_parts = get_split_parts(num_examples, num_parts)
     split_parts = [i for i in split_parts if i != 0]
-
     rets = calculate_iou_partly(
         dt_annos, gt_annos, metric, num_parts, z_axis=z_axis, z_center=z_center
     )
@@ -398,6 +391,7 @@ def do_eval_v3(
 ):
     # min_overlaps: [num_minoverlap, metric, num_class]
     types = ["bbox", "bev", "3d"]
+    # metric: eval type. 0: bbox, 1: bev, 2: 3d
     metrics = {}
     for i in range(3):
         ret = eval_class_v3(
@@ -458,7 +452,7 @@ def print_str(value, *arg, sstream=None):
 
 
 def get_official_eval_result(
-    gt_annos, dt_annos, current_classes, difficultys=[0, 1, 2], z_axis=1, z_center=1.0
+    gt_annos, dt_annos, current_classes, difficultys=[0], z_axis=1, z_center=1.0
 ):
     """
         gt_annos and dt_annos must contains following keys:
@@ -466,31 +460,26 @@ def get_official_eval_result(
     """
     overlap_mod = np.array(
         [
-            [0.7, 0.5, 0.5, 0.7, 0.7, 0.7, 0.7, 0.5, 0.5, 0.5, 0.5],
-            [0.7, 0.5, 0.5, 0.7, 0.7, 0.7, 0.7, 0.5, 0.5, 0.5, 0.5],
-            [0.7, 0.5, 0.5, 0.7, 0.7, 0.7, 0.7, 0.5, 0.5, 0.5, 0.5],
+            [0.7, 0.7, 0.7, 0.5, 0.5],
+            [0.7, 0.7, 0.7, 0.5, 0.5],
+            [0.7, 0.7, 0.7, 0.5, 0.5],
         ]
     )
     overlap_easy = np.array(
         [
-            [0.7, 0.5, 0.5, 0.7, 0.7, 0.7, 0.7, 0.5, 0.25, 0.25, 0.5],
-            [0.5, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5, 0.25, 0.25, 0.25, 0.25],
-            [0.5, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5, 0.25, 0.25, 0.25, 0.25],
+            [0.7, 0.7, 0.7, 0.5, 0.5],
+            [0.5, 0.5, 0.5, 0.25, 0.25],
+            [0.5, 0.5, 0.5, 0.25, 0.25],
         ]
     )
     min_overlaps = np.stack([overlap_mod, overlap_easy], axis=0)  # [2, 3, 5]
+
     class_to_name = {
         0: "car",
-        1: "pedestrian",
-        2: "bicycle",
-        3: "truck",
-        4: "bus",
-        5: "trailer",
-        6: "construction_vehicle",
-        7: "motorcycle",
-        8: "barrier",
-        9: "traffic_cone",
-        10: "cyclist",
+        1: "truck",
+        2: "tricar",
+        3: "cyclist",
+        4: "pedestrian",
     }
     name_to_class = {v: n for n, v in class_to_name.items()}
     if not isinstance(current_classes, (list, tuple)):
@@ -564,29 +553,18 @@ def get_official_eval_result(
 def get_coco_eval_result(gt_annos, dt_annos, current_classes, z_axis=1, z_center=1.0):
     class_to_name = {
         0: "car",
-        1: "pedestrian",
-        2: "bicycle",
-        3: "truck",
-        4: "bus",
-        5: "trailer",
-        6: "construction_vehicle",
-        7: "motorcycle",
-        8: "barrier",
-        9: "traffic_cone",
-        10: "cyclist",
+        1: "truck",
+        2: "tricar",
+        3: "cyclist",
+        4: "pedestrian",
     }
+
     class_to_range = {
         0: [0.5, 0.95, 10],
-        1: [0.25, 0.7, 10],
-        2: [0.25, 0.7, 10],
-        3: [0.5, 0.95, 10],
-        4: [0.5, 0.95, 10],
-        5: [0.5, 0.95, 10],
-        6: [0.5, 0.95, 10],
-        7: [0.25, 0.7, 10],
-        8: [0.25, 0.7, 10],
-        9: [0.25, 0.7, 10],
-        10: [0.25, 0.7, 10],
+        1: [0.5, 0.95, 10],
+        2: [0.5, 0.95, 10],
+        3: [0.25, 0.7, 10],
+        4: [0.25, 0.7, 10],
     }
     # class_to_range = {
     #     0: [0.5, 0.95, 10],

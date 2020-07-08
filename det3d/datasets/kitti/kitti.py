@@ -102,20 +102,21 @@ class KittiDataset(PointCloudDataset):
                 final_box_preds[:, -1] = box_np_ops.limit_period(
                     final_box_preds[:, -1], offset=0.5, period=np.pi * 2,
                 )
-                final_box_preds[:, 2] -= final_box_preds[:, 5] / 2
+                # final_box_preds[:, 2] -= final_box_preds[:, 5] / 2
 
                 # aim: x, y, z, w, l, h, r -> -y, -z, x, h, w, l, r
                 # (x, y, z, w, l, h r) in lidar -> (x', y', z', l, h, w, r) in camera
-                box3d_camera = box_np_ops.box_lidar_to_camera(
-                    final_box_preds, rect, Trv2c
-                )
-                camera_box_origin = [0.5, 1.0, 0.5]
+                # box3d_camera = box_np_ops.box_lidar_to_camera(
+                #     final_box_preds, rect, Trv2c
+                # )
+                box3d_camera = final_box_preds
+                camera_box_origin = [0.5, 0.5, 0.5]
                 box_corners = box_np_ops.center_to_corner_box3d(
                     box3d_camera[:, :3],
                     box3d_camera[:, 3:6],
                     box3d_camera[:, 6],
                     camera_box_origin,
-                    axis=1,
+                    axis=2,
                 )
                 box_corners_in_image = box_np_ops.project_to_image(box_corners, P2)
                 # box_corners_in_image: [N, 8, 2]
@@ -124,19 +125,16 @@ class KittiDataset(PointCloudDataset):
                 bbox = np.concatenate([minxy, maxxy], axis=1)
 
                 for j in range(box3d_camera.shape[0]):
-                    image_shape = info["image"]["image_shape"]
-                    if bbox[j, 0] > image_shape[1] or bbox[j, 1] > image_shape[0]:
-                        continue
-                    if bbox[j, 2] < 0 or bbox[j, 3] < 0:
-                        continue
-                    bbox[j, 2:] = np.minimum(bbox[j, 2:], image_shape[::-1])
-                    bbox[j, :2] = np.maximum(bbox[j, :2], [0, 0])
-                    anno["bbox"].append(bbox[j])
+                    # image_shape = info["image"]["image_shape"]
+                    # if bbox[j, 0] > image_shape[1] or bbox[j, 1] > image_shape[0]:
+                    #     continue
+                    # if bbox[j, 2] < 0 or bbox[j, 3] < 0:
+                    #     continue
+                    # bbox[j, 2:] = np.minimum(bbox[j, 2:], image_shape[::-1])
+                    # bbox[j, :2] = np.maximum(bbox[j, :2], [0, 0])
+                    anno["bbox"].append([-1, -1, -1, -1])
 
-                    anno["alpha"].append(
-                        -np.arctan2(-final_box_preds[j, 1], final_box_preds[j, 0])
-                        + box3d_camera[j, 6]
-                    )
+                    anno["alpha"].append(0)
                     # anno["dimensions"].append(box3d_camera[j, [4, 5, 3]])
                     anno["dimensions"].append(box3d_camera[j, 3:6])
                     anno["location"].append(box3d_camera[j, :3])
@@ -167,8 +165,8 @@ class KittiDataset(PointCloudDataset):
         dt_annos = self.convert_detection_to_kitti_annos(detections)
 
         # firstly convert standard detection to kitti-format dt annos
-        z_axis = 1  # KITTI camera format use y as regular "z" axis.
-        z_center = 1.0  # KITTI camera box's center is [0.5, 1, 0.5]
+        z_axis = 2  # KITTI camera format use y as regular "z" axis.
+        z_center = 0.5  # KITTI camera box's center is [0.5, 1, 0.5]
         # for regular raw lidar data, z_axis = 2, z_center = 0.5.
 
         result_official_dict = get_official_eval_result(
@@ -194,7 +192,7 @@ class KittiDataset(PointCloudDataset):
         return results, dt_annos
 
     def __getitem__(self, idx):
-        return self.get_sensor_data(idx, with_gp=True)
+        return self.get_sensor_data(idx, with_gp=False)
 
     def get_sensor_data(self, idx, with_image=False, with_gp=False):
 
@@ -213,7 +211,7 @@ class KittiDataset(PointCloudDataset):
                 "image_prefix": self._root_path,
                 "num_point_features": KittiDataset.NumPointFeatures,
                 "image_idx": info["image"]["image_idx"],
-                "image_shape": info["image"]["image_shape"],
+                # "image_shape": info["image"]["image_shape"],
                 "token": str(info["image"]["image_idx"]),
             },
             "calib": None,
@@ -227,7 +225,7 @@ class KittiDataset(PointCloudDataset):
         # objgraph.get_leaking_objects()
 
         image_info = info["image"]
-        image_path = image_info["image_path"]
+        # image_path = image_info["image_path"]
 
         if with_image:
             image_path = self._root_path / image_path

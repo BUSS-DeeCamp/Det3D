@@ -2,6 +2,7 @@ import os.path as osp
 import warnings
 import numpy as np
 from functools import reduce
+from pypcd import pypcd
 
 import pycocotools.mask as maskUtils
 
@@ -88,6 +89,7 @@ class LoadPointCloudFromFile(object):
             )
             if velo_reduced_path.exists():
                 velo_path = velo_reduced_path
+            # velo_path = str(velo_path).replace('train_val', 'train_val_filter')
             points = np.fromfile(str(velo_path), dtype=np.float32, count=-1).reshape(
                 [-1, res["metadata"]["num_point_features"]]
             )
@@ -199,15 +201,15 @@ class LoadPointCloudAnnotations(object):
                     [locs, dims, rots[..., np.newaxis]], axis=1
                 ).astype(np.float32)
                 calib = info["calib"]
-                gt_boxes = box_np_ops.box_camera_to_lidar(
-                    gt_boxes, calib["R0_rect"], calib["Tr_velo_to_cam"]
-                )
+                # gt_boxes = box_np_ops.box_camera_to_lidar(
+                #     gt_boxes, calib["R0_rect"], calib["Tr_velo_to_cam"]
+                # )
 
                 # only center format is allowed. so we need to convert
                 # kitti [0.5, 0.5, 0] center to [0.5, 0.5, 0.5]
-                box_np_ops.change_box3d_center_(
-                    gt_boxes, [0.5, 0.5, 0], [0.5, 0.5, 0.5]
-                )
+                # box_np_ops.change_box3d_center_(
+                #     gt_boxes, [0.5, 0.5, 0], [0.5, 0.5, 0.5]
+                # )
 
                 res["lidar"]["annotations"] = {
                     "boxes": gt_boxes,
