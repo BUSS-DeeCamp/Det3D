@@ -1,8 +1,9 @@
 import numpy as np
-from pathlib import Path
+import sys
+import time
+
 import open3d as o3d
 import torch
-import pickle
 
 from det3d import __version__
 from det3d.torchie.trainer import load_checkpoint
@@ -10,19 +11,12 @@ from det3d.torchie import Config
 from det3d.models import build_detector
 from det3d.builder import build_voxel_generator, build_target_assigners
 
-from alfred.fusion.kitti_fusion import lidar_pt_to_cam0_frame, lidar_pts_to_cam0_frame
-from alfred.vis.image.common import get_unique_color_by_id
 from alfred.dl.torch.common import device
 from alfred.utils.log import init_logger
+from alfred.vis.pointcloud.pointcloud_vis import draw_pcs_open3d
+from alfred.fusion.common import compute_3d_box_lidar_coords
 
 from loguru import logger as logging
-
-import cv2
-import sys
-import time
-
-from alfred.vis.pointcloud.pointcloud_vis import draw_pcs_open3d
-from alfred.fusion.common import compute_3d_box_lidar_coords, draw_3d_box
 
 init_logger()
 
