@@ -18,6 +18,8 @@ from alfred.fusion.common import compute_3d_box_lidar_coords
 
 from loguru import logger as logging
 
+from apex import amp
+
 init_logger()
 
 
@@ -32,6 +34,11 @@ class Deecamp3DDector(object):
     def _init_model(self):
 
         self.net = build_detector(self.config.model, train_cfg=None, test_cfg=self.config.test_cfg).to(device).eval()
+
+        # use mixed precision
+        opt_level = 'O1'
+        self.net = amp.initialize(self.net, opt_level=opt_level)
+
         checkpoint = load_checkpoint(self.net, self.model_p, map_location="cpu")
 
         # create voxel_generator
@@ -88,7 +95,7 @@ class Deecamp3DDector(object):
         }
 
     def predict_on_deecamp_local_file(self, v_p):
-        tic = time.time()
+
         points = self.load_pc_from_deecamp_file(v_p)[:, :4]
         logging.info('points shape: {}'.format(points.shape))
 
@@ -100,8 +107,12 @@ class Deecamp3DDector(object):
         example = self.load_an_in_example_from_points(points)
 
         # infer
+        tic = time.time()
         with torch.no_grad():
             pred = self.net(example, return_loss=False)[0]
+
+        # measure elapsed time
+        logging.info("Predict time: {:.3f}".format(time.time() - tic))
 
         box3d = pred['box3d_lidar'].detach().cpu().numpy()
         scores = pred["scores"].detach().cpu().numpy()
