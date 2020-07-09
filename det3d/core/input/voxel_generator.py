@@ -37,7 +37,7 @@ class VoxelGenerator:
         self._max_voxels = max_voxels
         self._grid_size = grid_size
 
-    def generate(self, points, max_voxels=20000):
+    def generate(self, points):
         conds = []
         for i in range(3):
             cond = np.logical_and(

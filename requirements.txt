@@ -12,8 +12,7 @@ pybind11
 vtk                                                                                                       
 joblib                                                                                                    
 easydict                                                                                                  
-open3d-python                                                                                             
-terminaltables                                                                                            
+terminaltables
 pytest-runner                                                                                             
 addict                                                                                                    
 pycocotools                                                                                               
