@@ -32,6 +32,9 @@ We provide a script to test a cloud file (`.bin` type). Please set the [config f
 python3 tools/test_a_bin_file.py /path/to/test/cloud.bin
 ```
 
+The results should be like:
+![quick_test](docs/quick_test.png)
+
 ## Model Zoo and Baselines
 
 ### [CBGS](https://github.com/poodarchu/Det3D/blob/master/examples/cbgs/configs/nusc_all_vfev3_spmiddleresnetfhd_rpn2_mghead_syncbn.py)
