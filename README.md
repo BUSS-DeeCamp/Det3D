@@ -24,6 +24,14 @@ Please refer to [INSTALATION.md](INSTALLATION.md).
 
 Please refer to [GETTING_STARTED.md](GETTING_STARTED.md).
 
+## Quick Test
+
+We provide a script to test a cloud file (`.bin` type). Please set the [config file path](tools/test_a_bin_file.py#L170) and [model file path](tools/test_a_bin_file.py#L172), then run:
+
+```bash
+python3 tools/test_a_bin_file.py /path/to/test/cloud.bin
+```
+
 ## Model Zoo and Baselines
 
 ### [CBGS](https://github.com/poodarchu/Det3D/blob/master/examples/cbgs/configs/nusc_all_vfev3_spmiddleresnetfhd_rpn2_mghead_syncbn.py)

@@ -13,6 +13,7 @@ from det3d.core.anchor.anchor_generator import (
 from det3d.core.bbox import region_similarity
 from det3d.core.bbox.box_coders import BevBoxCoderTorch, GroundBox3dCoderTorch
 from det3d.core.input.voxel_generator import VoxelGenerator
+from det3d.core.anchor.target_assigner import TargetAssigner
 from det3d.core.sampler.preprocess import DataBasePreprocessor
 from det3d.core.sampler.sample_ops import DataBaseSamplerV2
 from det3d.models.losses import GHMCLoss, GHMRLoss, losses
@@ -26,13 +27,48 @@ from torch import nn
 def build_voxel_generator(voxel_config):
 
     voxel_generator = VoxelGenerator(
-        voxel_size=voxel_config.VOXEL_SIZE,
-        point_cloud_range=voxel_config.RANGE,
-        max_num_points=voxel_config.MAX_POINTS_NUM_PER_VOXEL,
-        max_voxels=20000,
+        voxel_size=voxel_config.voxel_size,
+        point_cloud_range=voxel_config.range,
+        max_num_points=voxel_config.max_points_in_voxel,
+        max_voxels=voxel_config.max_voxel_num,
     )
 
     return voxel_generator
+
+def build_target_assigners(assigner_cfg):
+
+    target_assigner_config = assigner_cfg.target_assigner
+    tasks = target_assigner_config.tasks
+    box_coder_cfg = assigner_cfg.box_coder
+
+    anchor_cfg = target_assigner_config.anchor_generators
+    anchor_generators = []
+    for a_cfg in anchor_cfg:
+        anchor_generator = build_anchor_generator(a_cfg)
+        anchor_generators.append(anchor_generator)
+    similarity_calc = build_similarity_metric(
+        target_assigner_config.region_similarity_calculator
+    )
+    positive_fraction = target_assigner_config.sample_positive_fraction
+    if positive_fraction < 0:
+        positive_fraction = None
+    target_assigners = []
+    flag = 0
+
+    box_coder = build_box_coder(box_coder_cfg)
+
+    for task in tasks:
+        target_assigner = TargetAssigner(
+            box_coder=box_coder,
+            anchor_generators=anchor_generators[flag: flag + task.num_class],
+            region_similarity_calculator=similarity_calc,
+            positive_fraction=positive_fraction,
+            sample_size=target_assigner_config.sample_size,
+        )
+        flag += task.num_class
+        target_assigners.append(target_assigner)
+
+    return target_assigners
 
 
 def build_similarity_metric(similarity_config):
