@@ -1,26 +1,64 @@
-import numpy as np
 import sys
 import time
 
+import numpy as np
 import open3d as o3d
 import torch
-
-from det3d import __version__
-from det3d.torchie.trainer import load_checkpoint
-from det3d.torchie import Config
-from det3d.models import build_detector
-from det3d.builder import build_voxel_generator, build_target_assigners
-
 from alfred.dl.torch.common import device
+from alfred.fusion.common import compute_3d_box_lidar_coords
 from alfred.utils.log import init_logger
 from alfred.vis.pointcloud.pointcloud_vis import draw_pcs_open3d
-from alfred.fusion.common import compute_3d_box_lidar_coords
-
+from apex import amp
+from det3d.builder import build_voxel_generator, build_target_assigners
+from det3d.models import build_detector
+from det3d.torchie import Config
+from det3d.torchie.trainer import load_checkpoint
 from loguru import logger as logging
 
-from apex import amp
-
 init_logger()
+
+# set box colors
+box_colors = [
+    [1, 0.5, 0],  # orange, Car
+    [1, 0, 1],  # magenta, Truck
+    [1, 1, 1],  # white, Tricar
+    [0, 1, 0],  # green, Cyclist
+    [1, 0, 0]  # red, Pedestrian
+]
+
+
+def convert_detection_to_geometries(points, box3d, labels):
+    geometries = list()
+
+    # add points first
+    pcs = np.array(points[:, :3])
+    pcobj = o3d.geometry.PointCloud()
+    pcobj.points = o3d.utility.Vector3dVector(pcs)
+    geometries.append(pcobj)
+
+    # try getting 3d boxes coordinates
+    for ind in range(box3d.shape[0]):
+        p = box3d[ind, :]
+        xyz = np.array([p[: 3]])
+        hwl = np.array([p[3: 6]])
+        r_y = [-p[6]]  # it seems the angle needs to be inverted in the visualization
+        pts3d = compute_3d_box_lidar_coords(xyz, hwl, angles=r_y, origin=(0.5, 0.5, 0.5), axis=2)[0]
+        lines = [[0, 1], [1, 2], [2, 3], [3, 0],
+                 [4, 5], [5, 6], [6, 7], [7, 4],
+                 [0, 4], [1, 5], [2, 6], [3, 7]]
+        colors = [box_colors[labels[ind]] for i in range(len(lines))]
+        line_set = o3d.geometry.LineSet()
+        line_set.points = o3d.utility.Vector3dVector(pts3d)
+        line_set.lines = o3d.utility.Vector2iVector(lines)
+        line_set.colors = o3d.utility.Vector3dVector(colors)
+        geometries.append(line_set)
+
+    return geometries
+
+
+def visualize_deecamp(points, box3d, labels):
+    geometries = convert_detection_to_geometries(points, box3d, labels)
+    draw_pcs_open3d(geometries)
 
 
 class Deecamp3DDector(object):
@@ -32,7 +70,6 @@ class Deecamp3DDector(object):
         self._init_model()
 
     def _init_model(self):
-
         self.net = build_detector(self.config.model, train_cfg=None, test_cfg=self.config.test_cfg).to(device).eval()
 
         # use mixed precision
@@ -49,8 +86,6 @@ class Deecamp3DDector(object):
         target_assigners = build_target_assigners(self.config.assigner)
 
         # generate anchors
-        class_names_by_task = [t.classes for t in target_assigners]
-
         # -- calculate output featuremap size
         self.grid_size = self.voxel_generator.grid_size
         feature_map_size = self.grid_size[:2] // self.config.assigner.out_size_factor
@@ -76,7 +111,7 @@ class Deecamp3DDector(object):
 
     def load_an_in_example_from_points(self, points):
         voxels, coords, num_points = self.voxel_generator.generate(points)
-        coords = np.pad(coords, ((0, 0), (1, 0)), mode='constant', constant_values=0) # add batch idx to coords
+        coords = np.pad(coords, ((0, 0), (1, 0)), mode='constant', constant_values=0)  # add batch idx to coords
         num_voxels = np.array([voxels.shape[0]], dtype=np.int32)
 
         # convert to tensor
@@ -95,7 +130,6 @@ class Deecamp3DDector(object):
         }
 
     def predict_on_deecamp_local_file(self, v_p):
-
         points = self.load_pc_from_deecamp_file(v_p)[:, :4]
         logging.info('points shape: {}'.format(points.shape))
 
@@ -124,48 +158,7 @@ class Deecamp3DDector(object):
         labels = np.take(labels, idx)
         scores = np.take(scores, idx)
 
-        # show results
-        self.visualization(points, box3d, labels)
-
-    def visualization(self, points, box3d, labels):
-
-        # set box colors
-        box_colors = [
-            [1, 0.5, 0],  # orange, Car
-            [1, 0, 1],  # magenta, Truck
-            [1, 1, 1],  # white, Tricar
-            [0, 1, 0],  # green, Cyclist
-            [1, 0, 0]  # red, Pedestrian
-        ]
-
-        # show points first
-        geometries = []
-        pcs = np.array(points[:, :3])
-        pcobj = o3d.geometry.PointCloud()
-        pcobj.points = o3d.utility.Vector3dVector(pcs)
-        geometries.append(pcobj)
-
-        # try getting 3d boxes coordinates
-        for ind in range(box3d.shape[0]):
-            p = box3d[ind, :]
-            xyz = np.array([p[: 3]])
-            hwl = np.array([p[3: 6]])
-            r_y = [-p[6]]  # it seems the angle needs to be inversed in the visualization
-            pts3d = compute_3d_box_lidar_coords(xyz, hwl, angles=r_y, origin=(0.5, 0.5, 0.5), axis=2)[0]
-            points = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
-                      [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]]
-            # print(pts3d, points)
-            lines = [[0, 1], [1, 2], [2, 3], [3, 0],
-                     [4, 5], [5, 6], [6, 7], [7, 4],
-                     [0, 4], [1, 5], [2, 6], [3, 7]]
-            colors = [box_colors[labels[ind]] for i in range(len(lines))]
-            line_set = o3d.geometry.LineSet()
-            line_set.points = o3d.utility.Vector3dVector(pts3d)
-            line_set.lines = o3d.utility.Vector2iVector(lines)
-            line_set.colors = o3d.utility.Vector3dVector(colors)
-            geometries.append(line_set)
-
-        draw_pcs_open3d(geometries)
+        return points, box3d, labels
 
 
 if __name__ == "__main__":
@@ -176,4 +169,5 @@ if __name__ == "__main__":
         config = Config.fromfile(config_file)
         model_file = 'res/latest.pth'
         detector = Deecamp3DDector(config, model_file)
-        detector.predict_on_deecamp_local_file(sys.argv[1])
+        points, box3d, labels = detector.predict_on_deecamp_local_file(sys.argv[1])
+        visualize_deecamp(points, box3d, labels)
