@@ -9,22 +9,48 @@ from alfred.fusion.common import compute_3d_box_lidar_coords
 from alfred.utils.log import init_logger
 from alfred.vis.pointcloud.pointcloud_vis import draw_pcs_open3d
 from apex import amp
+from loguru import logger as logging
+
 from det3d.builder import build_voxel_generator, build_target_assigners
 from det3d.models import build_detector
 from det3d.torchie import Config
 from det3d.torchie.trainer import load_checkpoint
-from loguru import logger as logging
 
 init_logger()
 
 # set box colors
 box_colors = [
-    [1, 0.5, 0],  # orange, Car
-    [1, 0, 1],  # magenta, Truck
-    [1, 1, 1],  # white, Tricar
-    [0, 1, 0],  # green, Cyclist
-    [1, 0, 0]  # red, Pedestrian
+    [1.0, 0.5, 0.0],  # orange, Car
+    [1.0, 0.0, 1.0],  # magenta, Truck
+    [1.0, 1.0, 1.0],  # white, Tricar
+    [0.0, 1.0, 0.0],  # green, Cyclist
+    [1.0, 0.0, 0.0]  # red, Pedestrian
 ]
+
+
+def box_to_geometries(box3d, labels, color_fade_factor=1.0):
+    geometries = list()
+
+    # get 3d boxes coordinates
+    for ind in range(box3d.shape[0]):
+        p = box3d[ind, :]
+        xyz = np.array([p[: 3]])
+        hwl = np.array([p[3: 6]])
+        r_y = [-p[6]]  # it seems the angle needs to be inverted in the visualization
+        pts3d = compute_3d_box_lidar_coords(xyz, hwl, angles=r_y, origin=(0.5, 0.5, 0.5), axis=2)[0]
+        lines = [[0, 1], [1, 2], [2, 3], [3, 0],
+                 [4, 5], [5, 6], [6, 7], [7, 4],
+                 [0, 4], [1, 5], [2, 6], [3, 7]]
+        color = np.asarray(box_colors[labels[ind]])
+        color *= color_fade_factor
+        colors = [color for i in range(len(lines))]
+        line_set = o3d.geometry.LineSet()
+        line_set.points = o3d.utility.Vector3dVector(pts3d)
+        line_set.lines = o3d.utility.Vector2iVector(lines)
+        line_set.colors = o3d.utility.Vector3dVector(colors)
+        geometries.append(line_set)
+
+    return geometries
 
 
 def convert_detection_to_geometries(points, box3d, labels):
@@ -36,22 +62,8 @@ def convert_detection_to_geometries(points, box3d, labels):
     pcobj.points = o3d.utility.Vector3dVector(pcs)
     geometries.append(pcobj)
 
-    # try getting 3d boxes coordinates
-    for ind in range(box3d.shape[0]):
-        p = box3d[ind, :]
-        xyz = np.array([p[: 3]])
-        hwl = np.array([p[3: 6]])
-        r_y = [-p[6]]  # it seems the angle needs to be inverted in the visualization
-        pts3d = compute_3d_box_lidar_coords(xyz, hwl, angles=r_y, origin=(0.5, 0.5, 0.5), axis=2)[0]
-        lines = [[0, 1], [1, 2], [2, 3], [3, 0],
-                 [4, 5], [5, 6], [6, 7], [7, 4],
-                 [0, 4], [1, 5], [2, 6], [3, 7]]
-        colors = [box_colors[labels[ind]] for i in range(len(lines))]
-        line_set = o3d.geometry.LineSet()
-        line_set.points = o3d.utility.Vector3dVector(pts3d)
-        line_set.lines = o3d.utility.Vector2iVector(lines)
-        line_set.colors = o3d.utility.Vector3dVector(colors)
-        geometries.append(line_set)
+    # add boxes
+    geometries += box_to_geometries(box3d, labels)
 
     return geometries
 
