@@ -26,12 +26,6 @@ class SimpleTrackObject(object):
     def get_xyz(self):
         return self.box[: 3]
 
-    def get_label(self):
-        return self.label
-
-    def get_history(self):
-        return self.history
-
     def update_measurement(self, new_box):
         self.box = new_box
         self.history.append(new_box)
@@ -49,23 +43,14 @@ class SimpleTracker(object):
         self.objects = list()
         self.initialized = False
 
-    def set_initialized(self):
-        self.initialized = True
-
-    def get_initialized_status(self):
-        return self.initialized
-
     def add_object(self, obj):
         self.objects.append(obj)
-
-    def get_objects(self):
-        return self.objects
 
     def update_object(self, new_box, label):
 
         for cur_obj in self.objects:
             # check label
-            if label != cur_obj.get_label():
+            if label != cur_obj.label:
                 continue
 
             # check if in tracking range
@@ -84,9 +69,9 @@ class SimpleTracker(object):
         geometries = list()
 
         for obj in self.objects:
-            label = obj.get_label()
+            label = obj.label
 
-            for box in obj.get_history():
+            for box in obj.history:
                 mesh_sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.2)
                 mesh_sphere.compute_vertex_normals()
                 mesh_sphere.paint_uniform_color(box_colors[label])
@@ -169,12 +154,12 @@ if __name__ == "__main__":
         for cloud_file in cloud_files:
             points, boxes, labels = detector.predict_on_deecamp_local_file(cloud_file)
 
-            if not tracker.get_initialized_status():
+            if not tracker.initialized:
                 for box, label in zip(boxes, labels):
                     obj = SimpleTrackObject(box, label)
                     tracker.add_object(obj)
 
-                tracker.set_initialized()
+                tracker.initialized = True
 
             else:
                 for box, label in zip(boxes, labels):
