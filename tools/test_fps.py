@@ -104,10 +104,12 @@ class Deecamp3DDector(object):
         infer_time = AverageMeter()
 
         for i in range(num_of_iteration):
+            torch.cuda.synchronize()
             tic = time.time()
             with torch.no_grad():
                 pred = self.net(example, return_loss=False)[0]
 
+            torch.cuda.synchronize()
             toc = time.time()
             infer_time.update(toc - tic)
             print('#{}: {:.3f} s'.format(i, toc - tic))
