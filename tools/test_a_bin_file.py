@@ -153,11 +153,13 @@ class Deecamp3DDector(object):
         example = self.load_an_in_example_from_points(points)
 
         # infer
+        torch.cuda.synchronize()
         tic = time.time()
         with torch.no_grad():
             pred = self.net(example, return_loss=False)[0]
 
         # measure elapsed time
+        torch.cuda.synchronize()
         logging.info("Predict time: {:.3f}".format(time.time() - tic))
 
         box3d = pred['box3d_lidar'].detach().cpu().numpy()
