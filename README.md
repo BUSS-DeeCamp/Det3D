@@ -28,10 +28,10 @@ Please refer to [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ### Single file test
 
-We provide a script to test a cloud file (`.bin` type). Please set the [config file path](tools/test_a_bin_file.py#L168) and [model file path](tools/test_a_bin_file.py#L170), then run:
+We provide a script to test a cloud file (`.bin` type). Please set the [config file path](tools/tests/test_a_bin_file.py#L168) and [model file path](tools/tests/test_a_bin_file.py#L170), then run:
 
 ```bash
-python3 tools/test_a_bin_file.py /path/to/test/cloud.bin
+python3 tools/tests/test_a_bin_file.py /path/to/test/cloud.bin
 ```
 
 The results should be like:
@@ -39,10 +39,10 @@ The results should be like:
 
 ### Sequence test
 
-We also provide a script to test a cloud sequence (`.bin` files in a folder). Please set the [config file path](tools/test_detect_and_track.py#L141) and [model file path](tools/test_detect_and_track.py#L143), then run:
+We also provide a script to test a cloud sequence (`.bin` files in a folder). Please set the [config file path](tools/tests/test_detect_and_track.py#L141) and [model file path](tools/tests/test_detect_and_track.py#L143), then run:
 
 ```bash
-python3 tools/test_detect_and_track.py /path/to/data/folder
+python3 tools/tests/test_detect_and_track.py /path/to/data/folder
 ```
 
 The results should be like:
