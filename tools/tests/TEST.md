@@ -10,7 +10,7 @@ The C++ version of original gay ground filter is from [here](https://github.com/
 
 Based on the original version, we add two refinements to include more object points, since the cloud provided by DeeCamp is much denser than other datasets.
 
-To test the filter, first select the `refinement mode` [here](tools/tests/ray_ground_filter.py#L321-L323), then run:
+To test the filter, first select the `refinement mode` [here](ray_ground_filter.py#L321-L323), then run:
 
 ```bash
 python3 tools/tests/ray_ground_filter.py /path/to/test/cloud.bin
