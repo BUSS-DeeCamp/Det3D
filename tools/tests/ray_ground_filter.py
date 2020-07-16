@@ -1,5 +1,6 @@
 import math
 import sys
+import time
 
 import numpy as np
 import open3d as o3d
@@ -18,13 +19,18 @@ class PointXYZIRA(object):
 
 class RayGroundFilter(object):
 
-    def __init__(self):
+    def __init__(self, refinement_mode=None):
         self.radial_bin_angle = 0.4  # deg
         self.sensor_height = 0.0  # m
         self.min_local_height_threshold = 0.1  # m
         self.local_max_slope_angle = 10.0  # deg
         self.global_max_slope_angle = 5.0  # deg
         self.reclassify_distance_threshold = 0.2  # m
+
+        self.refinement_mode = refinement_mode
+        self.refinement_window_size = 0.5  # m
+        self.refinement_non_ground_ratio_threshold = 0.1
+        self.refinement_nearest_distance_threshold = 0.3  # m
 
         self.cloud = None
         self.cloud_formatted = None
@@ -38,6 +44,8 @@ class RayGroundFilter(object):
         angles = (angles + 2 * np.pi) % (2 * np.pi)  # convert to range: [0,  2*pi)
         angle_bin_indices = np.floor(np.degrees(angles) / self.radial_bin_angle).astype(int)
 
+        logging.info('Total points: {}'.format(self.cloud.shape[0]))
+
         # add points
         self.cloud_formatted = [list() for j in range(bin_num)]
 
@@ -49,18 +57,61 @@ class RayGroundFilter(object):
         for i in range(bin_num):
             self.cloud_formatted[i].sort(key=lambda pt: pt.radius)
 
+    def filter(self, cloud):
+
+        self.cloud = cloud
+        ground_points = None
+        non_ground_points = None
+
+        # reformat cloud data to (radius, angle)
+        self.reformat()
+
+        # classify
+        ground_points, non_ground_points = self.classify()
+
+        return ground_points, non_ground_points
+
     def classify(self):
 
-        ground_indices = list()
-        non_ground_indices = list()
+        self.ground_indices = list()
+        self.non_ground_indices = list()
+
+        logging.info(
+            'Using refinement mode: {}'.format(self.refinement_mode if self.refinement_mode is not None else 'None'))
 
         # iter for each bin
         for bin in self.cloud_formatted:
+            self.process_bin(bin)
+
+        ground_points = self.cloud[self.ground_indices, :]
+        non_ground_points = self.cloud[self.non_ground_indices, :]
+
+        if self.refinement_mode is 'nearest_neightbour':
+            # compute distance from ground points to non-ground points
+            ground_pcd = o3d.geometry.PointCloud()
+            ground_pcd.points = o3d.utility.Vector3dVector(self.cloud[self.ground_indices, :3])
+
+            non_ground_pcd = o3d.geometry.PointCloud()
+            non_ground_pcd.points = o3d.utility.Vector3dVector(self.cloud[self.non_ground_indices, :3])
+
+            # get those ground points needed to be changed to non-ground points
+            ground_to_non_ground_distance = np.asarray(ground_pcd.compute_point_cloud_distance(non_ground_pcd))
+            change_ground_flag_mask = ground_to_non_ground_distance < self.refinement_nearest_distance_threshold
+            non_change_ground_flag_mask = np.logical_not(change_ground_flag_mask)
+
+            # update ground and non-ground points
+            non_ground_points = np.append(non_ground_points, ground_points[change_ground_flag_mask], axis=0)
+            ground_points = ground_points[non_change_ground_flag_mask]
+
+        return ground_points, non_ground_points
+
+    def process_bin(self, bin):
 
             # [for debug use]
-            # bin_point_radius = list()
-            # bin_point_heights = list()
-            # bin_point_color = list()
+            bin_point_radius = list()
+            bin_point_heights = list()
+            bin_ground_flags = list()
+            bin_point_color = list()
 
             # init buffer
             prev_radius = 0.0
@@ -99,43 +150,99 @@ class RayGroundFilter(object):
                         current_ground = False
 
                 # add to buffer
-                if current_ground:
-                    ground_indices.append(pt.original_index)
-                    prev_ground = True
-                else:
-                    non_ground_indices.append(pt.original_index)
-                    prev_ground = False
+                bin_ground_flags.append(current_ground)
 
                 # update other states
+                prev_ground = current_ground
                 prev_radius = pt.radius
                 prev_height = pt.height
 
-                # [for debug use]
-                # bin_point_radius.append(pt.radius)
-                # bin_point_heights.append(pt.height)
-                # color = [0.0, 1.0, 0.0] if current_ground else [1.0, 0.0, 0.0]
-                # bin_point_color.append(color)
-                #
-                # plt.scatter(bin_point_radius, bin_point_heights, c=bin_point_color)
-                # plt.show()
+            # [for debug use]
+            # for i in range(len(bin)):
+            #     bin_point_radius.append(bin[i].radius)
+            #     bin_point_heights.append(bin[i].height)
+            #     color = [0.0, 1.0, 0.0] if bin_ground_flags[i] else [1.0, 0.0, 0.0]
+            #     bin_point_color.append(color)
+            # plt.scatter(bin_point_radius, bin_point_heights, c=bin_point_color)
+            # plt.show()
 
-        return ground_indices, non_ground_indices
+            if self.refinement_mode is 'sliding_window':
 
-    def filter(self, cloud):
+                # revisit the points for further refinement with sliding window voting
+                window_start_index = 0
+                window_start_radius = 0.0
+                ground_points_in_window = 0
+                non_ground_points_in_window = 0
+                refine_init = False
 
-        self.cloud = cloud
-        ground_points = None
-        non_ground_points = None
+                for i in range(len(bin)):
 
-        # reformat cloud data to (radius, angle)
-        self.reformat()
+                    pt = bin[i]
+                    ground_flag = bin_ground_flags[i]
 
-        # classify
-        ground_indices, non_ground_indices = self.classify()
-        ground_points = self.cloud[ground_indices, :]
-        non_ground_points = self.cloud[non_ground_indices, :]
+                    # use the first point to initialize the window
+                    if not refine_init:
+                        window_start_index = i
+                        window_start_radius = pt.radius
 
-        return ground_points, non_ground_points
+                        if ground_flag:
+                            ground_points_in_window = 1
+                        else:
+                            non_ground_points_in_window = 1
+
+                        refine_init = True
+                        continue
+
+                    # check if current point is in the window
+                    if pt.radius < window_start_radius + self.refinement_window_size:
+                        if ground_flag:
+                            ground_points_in_window += 1
+                        else:
+                            non_ground_points_in_window += 1
+                    else:
+                        # vote for classification
+                        total_points_in_window = ground_points_in_window + non_ground_points_in_window
+                        vote_for_non_ground = non_ground_points_in_window / total_points_in_window
+
+                        if vote_for_non_ground > self.refinement_non_ground_ratio_threshold:
+                            for j in range(window_start_index, i):
+                                bin_ground_flags[j] = False
+                        else:
+                            for j in range(window_start_index, i):
+                                bin_ground_flags[j] = True
+
+                        # logging.info('pt #{}, window: {}-{}, ratio: {}'.format(
+                        #     i, window_start_index, i - 1, vote_for_non_ground))
+
+                        # reset window status
+                        window_start_index = i
+                        window_start_radius = pt.radius
+                        if ground_flag:
+                            ground_points_in_window = 1
+                            non_ground_points_in_window = 0
+                        else:
+                            ground_points_in_window = 0
+                            non_ground_points_in_window = 1
+
+            # [for debug use]
+            # bin_point_radius.clear()
+            # bin_point_heights.clear()
+            # bin_point_color.clear()
+            # for i in range(len(bin)):
+            #     bin_point_radius.append(bin[i].radius)
+            #     bin_point_heights.append(bin[i].height)
+            #     for ground_flag in bin_ground_flags:
+            #         color = [0.0, 1.0, 0.0] if ground_flag else [1.0, 0.0, 0.0]
+            #         bin_point_color.append(color)
+            # plt.scatter(bin_point_radius, bin_point_heights, c=bin_point_color[:len(bin_point_radius)])
+            # plt.show()
+
+            # add bin results
+            for pt, ground_flag in zip(bin, bin_ground_flags):
+                if ground_flag:
+                    self.ground_indices.append(pt.original_index)
+                else:
+                    self.non_ground_indices.append(pt.original_index)
 
 
 class Visualizer(object):
@@ -149,7 +256,7 @@ class Visualizer(object):
 
         self.vis = o3d.visualization.VisualizerWithKeyCallback()
         self.vis.register_key_callback(key=ord("S"), callback_func=self.key_callback_to_switch_view)
-        logging.info('Press S to switch view from raw, ground and non-ground points.')
+        logging.info('Press \'s\' to switch view from raw, ground and non-ground points.')
 
     def key_callback_to_switch_view(self, vis):
 
@@ -211,10 +318,17 @@ if __name__ == "__main__":
         cloud = cloud[z_filt, :]
 
         # create detector
-        rgf = RayGroundFilter()
+        # rgf = RayGroundFilter()
+        # rgf = RayGroundFilter(refinement_mode='sliding_window')
+        rgf = RayGroundFilter(refinement_mode='nearest_neightbour')
 
         # get output ground plane and points
+        tic = time.time()
+
         ground_points, non_ground_points = rgf.filter(cloud)
+
+        toc = time.time()
+        logging.info("Filtering time: {} s".format(toc - tic))
 
         # visualization
         vis = Visualizer()
