@@ -10,7 +10,7 @@ from det3d.torchie import Config
 
 init_logger()
 
-from tools.test_a_bin_file import Deecamp3DDector, convert_detection_to_geometries, box_colors, box_to_geometries
+from tools.tests.test_a_bin_file import Deecamp3DDector, convert_detection_to_geometries, box_colors, box_to_geometries
 
 
 class SimpleTrackObject(object):
