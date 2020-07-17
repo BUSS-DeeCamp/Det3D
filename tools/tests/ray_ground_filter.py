@@ -60,8 +60,6 @@ class RayGroundFilter(object):
     def filter(self, cloud):
 
         self.cloud = cloud
-        ground_points = None
-        non_ground_points = None
 
         # reformat cloud data to (radius, angle)
         self.reformat()
