@@ -86,7 +86,7 @@ class RayGroundFilter(object):
         ground_points = self.cloud[self.ground_indices, :]
         non_ground_points = self.cloud[self.non_ground_indices, :]
 
-        if self.refinement_mode is 'nearest_neightbour':
+        if self.refinement_mode is 'nearest_neighbor':
             # compute distance from ground points to non-ground points
             ground_pcd = o3d.geometry.PointCloud()
             ground_pcd.points = o3d.utility.Vector3dVector(self.cloud[self.ground_indices, :3])
@@ -320,7 +320,7 @@ if __name__ == "__main__":
         # create detector
         # rgf = RayGroundFilter()
         # rgf = RayGroundFilter(refinement_mode='sliding_window')
-        rgf = RayGroundFilter(refinement_mode='nearest_neightbour')
+        rgf = RayGroundFilter(refinement_mode='nearest_neighbor')
 
         # get output ground plane and points
         tic = time.time()
