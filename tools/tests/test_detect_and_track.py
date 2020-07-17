@@ -4,9 +4,8 @@ from pathlib import Path
 import numpy as np
 import open3d as o3d
 from alfred.utils.log import init_logger
-from loguru import logger as logging
-
 from det3d.torchie import Config
+from loguru import logger as logging
 
 init_logger()
 
@@ -59,7 +58,6 @@ class SimpleTrackObject(object):
 
             # update num of predictions
             self.num_of_predictions += 1
-
 
     def update_measurement(self, timestamp, new_box):
         self.timestamp = timestamp
@@ -123,7 +121,7 @@ class SimpleTracker(object):
         prediction_geometry = None
 
         for obj in self.objects:
-            
+
             # ignore those objects with too short life
             if len(obj.history) < 3:
                 continue
@@ -184,21 +182,6 @@ class SimpleTracker(object):
 
 def key_callback_to_quit(vis):
     quit()
-
-
-def visualize_open3d(geometries):
-    vis = o3d.visualization.VisualizerWithKeyCallback()
-    vis.register_key_callback(key=ord("Q"), callback_func=key_callback_to_quit)
-    logging.info('Press Q to exit.')
-
-    vis.create_window()
-    opt = vis.get_render_option()
-    opt.background_color = np.asarray([0, 0, 0])
-    opt.point_size = 1
-    for g in geometries:
-        vis.add_geometry(g)
-    vis.run()
-    vis.destroy_window()
 
 
 def config_visualizer(vis):
