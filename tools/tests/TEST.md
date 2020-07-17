@@ -16,6 +16,12 @@ To test the filter, first select the `refinement mode` [here](ray_ground_filter.
 python3 tools/tests/ray_ground_filter.py /path/to/test/cloud.bin
 ```
 
+To process multiple cloud files in a folder and split them into ground clouds and non-ground clouds, please run:
+
+```bash
+python3 tools/tests/split_cloud_with_ground_filter.py /path/to/data/folder /path/to/output/folder
+```
+
 The results are shown as follows:
 
 - Raw cloud
