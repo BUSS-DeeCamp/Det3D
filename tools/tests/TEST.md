@@ -38,3 +38,37 @@ The results are shown as follows:
 - With **nearest neighbor** refinement:
 ![](../../docs/ray_ground_filter_nearest_neighbor_ground.png)
 ![](../../docs/ray_ground_filter_nearest_neighbor_non_ground.png)
+
+## Scene Generator
+
+We design a tool to generate simulated scenes by combining objects from labeled dataset and 
+the original non-ground points after croping the original objects.
+
+To test the generator, first modify the `data_folder`, `objects_folder` and `label_file` [here](random_scene_generation.py#L493-L495), then run:
+
+```bash
+python3 tools/tests/random_scene_generation.py
+```
+
+The main procedure includes:
+
+1. Load a frame with its label info
+![original_cloud](../../docs/random_scene_generation_original_cloud.png)
+
+2. Remove labeled objects
+![objects_removed](../../docs/random_scene_generation_objects_removed.png)
+
+3. Remove ground points
+![ground_removed](../../docs/random_scene_generation_ground_removed.png)
+
+4. Random select and place objects from pre-collected objects
+![selected_objects](../../docs/random_scene_generation_selected_objects.png)
+
+5. Add non-ground points
+![add_non_ground](../../docs/random_scene_generation_add_non_ground.png)
+
+**Remarks:**
+
+- The objects are resampled by LiDAR sensor after beening placed to a new random location.
+- The objects are added from close to far, and only the collision-free objects are remained.
+- Those non-ground points occluded by the objects are removed.
