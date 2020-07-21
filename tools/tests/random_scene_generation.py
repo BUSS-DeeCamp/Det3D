@@ -11,6 +11,12 @@ from loguru import logger as logging
 from tools.tests.ray_ground_filter import RayGroundFilter
 from tools.tests.object_utils import Box, ObjectWithBox, ObjectManipulator, VisualizerSequence
 
+# set seed for debug
+# seed = random.randrange(sys.maxsize)
+seed = 1000
+random.seed(seed)
+logging.info('Random seed: {}'.format(seed))
+
 
 class SceneGenerator(object):
 
@@ -102,11 +108,6 @@ class SceneGenerator(object):
     def random_select_candidate_objects(self):
         class_num = len(self.objects_data)
         object_id = 0
-
-        # set random seed
-        seed = random.randrange(sys.maxsize)
-        rng = random.Random(seed)
-        logging.info("Random seed was: {}".format(seed))
 
         for i in range(class_num):
             objs = objects_data[i]
