@@ -57,8 +57,7 @@ if __name__ == '__main__':
     # generate and save results
     g = Generator(data_folder, output_scenes_folder, objects_data)
     p = Pool()
-    generated_labels = p.map(g.run, labels[:3])
-    # generated_labels = [g.run(labels[0])]
+    generated_labels = p.map(g.run, labels)
 
     # save labels to file
     output_label_file = output_label_folder.joinpath('sim_scene.txt')
