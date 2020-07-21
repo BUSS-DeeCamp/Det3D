@@ -111,8 +111,13 @@ class Deecamp3DDector(object):
 
             torch.cuda.synchronize()
             toc = time.time()
-            infer_time.update(toc - tic)
-            print('#{}: {:.3f} s'.format(i, toc - tic))
+
+            if i < 10:
+                print('#{}: {:.3f} s'.format(i, toc - tic))
+                print('Notice: Skip the first 10 measurements...')
+            else:
+                infer_time.update(toc - tic)
+                print('#{}: {:.3f} s'.format(i, toc - tic))
 
         print("Average inference time: {:.3f} s".format(infer_time.avg))
 
