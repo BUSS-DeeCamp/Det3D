@@ -50,6 +50,14 @@ To test the generator, first modify the `data_folder`, `objects_folder` and `lab
 python3 tools/tests/random_scene_generation.py
 ```
 
+To process multiple scenes at the same time and save their clouds and a single label file,
+first modify the `data_folder`, `objects_folder` and `label_file` [here](generate_simulated_scenes.py#L31-L33),
+then run:
+
+```bash
+python3 tools/tests/generate_simulated_scenes.py
+```
+
 The main procedure includes:
 
 1. Load a frame with its label info
