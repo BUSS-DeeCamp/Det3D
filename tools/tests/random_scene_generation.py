@@ -25,8 +25,11 @@ class SceneGenerator(object):
         self.cloud_data_folder = cloud_data_folder
         self.output_folder = output_folder
         self.objects_data = objects_data
-        self.output_file = None  # path to save output cloud .bin file
+
+        self.output_cloud_file = None  # path to save output cloud .bin file
+        self.output_label_file = None  # path to save output label .txt file
         self.label_data_dict = None  # label data dict of the original scene
+        self.scene_labels = None  # label data dict of the generated scene
 
         self.output_file_name = None
 
@@ -40,7 +43,6 @@ class SceneGenerator(object):
         self.selected_objects = list()
         self.labels_of_objects = list()
         self.labels_of_valid_objects = list()
-        self.all_object_pcd = o3d.geometry.PointCloud()  # open3d cloud to save points of all objects
 
         # configure the object manipulator and the transform between the original lidar frame and current frame
         origin_lidar_rotation = [3.13742, -3.1309, 3.14101]
@@ -417,27 +419,39 @@ class SceneGenerator(object):
         scene_pcd.transform(self.object_manipulator.transform_origin_lidar_to_current)
         self.scene_points = np.asarray(scene_pcd.points)
 
-    def write_to_file(self):
-        self.output_file = Path(self.output_folder).joinpath(self.output_file_name)
+    def save_scene_cloud_to_file(self):
+        self.output_cloud_file = Path(self.output_folder).joinpath(self.output_file_name)
 
         # add intensity
         scene_points_with_intensity = np.zeros((self.scene_points.shape[0], 4))
         scene_points_with_intensity[:, :3] = self.scene_points.copy()
 
         # write
-        scene_points_with_intensity.astype(np.float32).tofile(self.output_file.as_posix())
-        logging.info('Scene cloud saved to: ' + self.output_file.as_posix())
+        scene_points_with_intensity.astype(np.float32).tofile(self.output_cloud_file.as_posix())
+        logging.info('Scene cloud saved to: ' + self.output_cloud_file.as_posix())
 
     def get_scene_labels(self):
-        scene_labels = self.label_data_dict.copy()
+
+        self.scene_labels = self.label_data_dict.copy()
 
         # update data
-        scene_labels['md5'] = hashlib.md5(open(self.output_file.as_posix(), 'rb').read()).hexdigest()
-        scene_labels['gts'] = list()
+        self.scene_labels['md5'] = hashlib.md5(open(self.output_cloud_file.as_posix(), 'rb').read()).hexdigest()
+        self.scene_labels['gts'] = list()
         for label in self.labels_of_valid_objects:
-            scene_labels['gts'].append(label)
+            self.scene_labels['gts'].append(label)
 
-        return scene_labels
+        return self.scene_labels
+
+    def save_scene_labels_to_file(self):
+
+        scene_labels = self.get_scene_labels()
+
+        # write
+        self.output_label_file = Path(self.output_folder).joinpath(self.output_cloud_file.stem + '.txt')
+        with open(self.output_label_file.as_posix(), 'w') as fout:
+            json.dump(scene_labels, fout)
+
+        logging.info('Scene labels saved to: ' + self.output_label_file.as_posix())
 
     def convert_scene_to_geometries(self):
         geometries = list()
@@ -500,6 +514,23 @@ class SceneGenerator(object):
 
         return geometries
 
+    def reset(self):
+        self.output_cloud_file = None  # path to save output cloud .bin file
+        self.label_data_dict = None  # label data dict of the original scene
+
+        self.output_file_name = None
+
+        self.cloud = None  # cloud as numpy ndarray type
+        self.pcd = None  # cloud as Open3d type
+        self.scene_points = None  # generated scene cloud as numpy ndarray type
+
+        self.point_distance_buffer = None
+        self.lidar_mask_buffer = None
+
+        self.selected_objects = list()
+        self.labels_of_objects = list()
+        self.labels_of_valid_objects = list()
+
 
 if __name__ == '__main__':
 
@@ -526,6 +557,9 @@ if __name__ == '__main__':
 
     logging.info('Total labeled scenes: {}'.format(len(labels)))
 
+    # create scene generator
+    sg = SceneGenerator(data_folder, output_scenes_folder, objects_data)
+
     # create visualizer
     vis = VisualizerSequence()
 
@@ -535,17 +569,20 @@ if __name__ == '__main__':
 
         logging.info("Scene #{}".format(scene_num))
 
-        # create scene generator
-        sg = SceneGenerator(data_folder, output_scenes_folder, objects_data)
-
         # generate a scene
         sg.generate_scene(data_dict)
 
         # save scene cloud to .bin file
-        sg.write_to_file()
+        sg.save_scene_cloud_to_file()
+
+        # save scene labels to .txt file
+        sg.save_scene_labels_to_file()
 
         # visualization
         geometries = sg.convert_scene_to_geometries()
         vis.show(geometries)
+
+        # reset scene generator
+        sg.reset()
 
         scene_num += 1
