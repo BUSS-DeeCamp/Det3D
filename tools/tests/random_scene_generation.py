@@ -4,6 +4,7 @@ import pickle
 import random
 from pathlib import Path
 import csv
+import hashlib
 
 import numpy as np
 import open3d as o3d
@@ -20,9 +21,12 @@ logging.info('Random seed: {}'.format(seed))
 
 class SceneGenerator(object):
 
-    def __init__(self, output_folder, objects_data):
+    def __init__(self, cloud_data_folder, output_folder, objects_data):
+        self.cloud_data_folder = cloud_data_folder
         self.output_folder = output_folder
         self.objects_data = objects_data
+        self.output_file = None  # path to save output cloud .bin file
+        self.label_data_dict = None  # label data dict of the original scene
 
         self.output_file_name = None
 
@@ -110,7 +114,7 @@ class SceneGenerator(object):
         object_id = 0
 
         for i in range(class_num):
-            objs = objects_data[i]
+            objs = self.objects_data[i]
             class_name = objs['class_name']
             samples = random.sample(objs['objects'], self.num_of_objects[class_name])
 
@@ -319,11 +323,13 @@ class SceneGenerator(object):
 
     def generate_scene(self, data_dict):
 
+        self.label_data_dict = data_dict
+
         # set output file
         self.output_file_name = Path(data_dict['path']).name
 
         # load cloud data
-        cloud_path = Path(data_folder).joinpath(data_dict['path']).as_posix()
+        cloud_path = Path(self.cloud_data_folder).joinpath(data_dict['path']).as_posix()
         cloud = np.fromfile(cloud_path, dtype=np.float32)
         cloud = cloud.reshape((-1, 4))
 
@@ -369,7 +375,9 @@ class SceneGenerator(object):
             valid_points_num_threshold = 50
             valid_points_num = self.add_object_to_scene(object, points_num_threshold=valid_points_num_threshold)
             if valid_points_num > valid_points_num_threshold:
-                self.labels_of_valid_objects.append(self.labels_of_objects[i])
+                valid_label = self.labels_of_objects[i]
+                valid_label['num_points'] = valid_points_num
+                self.labels_of_valid_objects.append(valid_label)
                 # logging.info("Valid object #{}, points: {}".format(i, valid_points_num))
 
         logging.info('Valid objects in the scene: {}'.format(len(self.labels_of_valid_objects)))
@@ -410,15 +418,26 @@ class SceneGenerator(object):
         self.scene_points = np.asarray(scene_pcd.points)
 
     def write_to_file(self):
-        output_file = Path(self.output_folder).joinpath(self.output_file_name)
+        self.output_file = Path(self.output_folder).joinpath(self.output_file_name)
 
         # add intensity
         scene_points_with_intensity = np.zeros((self.scene_points.shape[0], 4))
         scene_points_with_intensity[:, :3] = self.scene_points.copy()
 
         # write
-        scene_points_with_intensity.astype(np.float32).tofile(output_file.as_posix())
-        logging.info('Scene cloud saved to: ' + output_file.as_posix())
+        scene_points_with_intensity.astype(np.float32).tofile(self.output_file.as_posix())
+        logging.info('Scene cloud saved to: ' + self.output_file.as_posix())
+
+    def get_scene_labels(self):
+        scene_labels = self.label_data_dict.copy()
+
+        # update data
+        scene_labels['md5'] = hashlib.md5(open(self.output_file.as_posix(), 'rb').read()).hexdigest()
+        scene_labels['gts'] = list()
+        for label in self.labels_of_valid_objects:
+            scene_labels['gts'].append(label)
+
+        return scene_labels
 
     def convert_scene_to_geometries(self):
         geometries = list()
@@ -517,7 +536,7 @@ if __name__ == '__main__':
         logging.info("Scene #{}".format(scene_num))
 
         # create scene generator
-        sg = SceneGenerator(output_scenes_folder, objects_data)
+        sg = SceneGenerator(data_folder, output_scenes_folder, objects_data)
 
         # generate a scene
         sg.generate_scene(data_dict)
