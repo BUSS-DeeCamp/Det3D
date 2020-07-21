@@ -7,13 +7,12 @@ import open3d as o3d
 from loguru import logger as logging
 
 
-class PointXYZIRA(object):
-    def __init__(self, original_index, radius, angle, height, intensity, angle_bin_index):
+class PointXYZRA(object):
+    def __init__(self, original_index, radius, angle, height, angle_bin_index):
         self.original_index = original_index
         self.radius = radius
         self.angle = angle
         self.height = height
-        self.intensity = intensity
         self.angle_bin_index = angle_bin_index
 
 
@@ -50,7 +49,7 @@ class RayGroundFilter(object):
         self.cloud_formatted = [list() for j in range(bin_num)]
 
         for i in range(self.cloud.shape[0]):
-            point = PointXYZIRA(i, radius[i], angles[i], self.cloud[i, 2], self.cloud[i, 3], angle_bin_indices[i])
+            point = PointXYZRA(i, radius[i], angles[i], self.cloud[i, 2], angle_bin_indices[i])
             self.cloud_formatted[angle_bin_indices[i]].append(point)
 
         # sort each bin with radius in ascending order
