@@ -142,7 +142,7 @@ class Deecamp3DDector(object):
         }
 
     def predict_on_deecamp_local_file(self, v_p):
-        points = self.load_pc_from_deecamp_file(v_p)[:, :4]
+        points = self.load_pc_from_deecamp_file(v_p)
         logging.info('points shape: {}'.format(points.shape))
 
         # remove points far under the ground
