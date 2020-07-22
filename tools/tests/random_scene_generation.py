@@ -50,12 +50,19 @@ class SceneGenerator(object):
         # num of each classes in a scene
         self.num_of_objects = {'Car': 15, 'Truck': 5, 'Tricar': 5, 'Cyclist': 10, 'Pedestrian': 10}
 
-        # radial distance range of each classes in a scene
-        self.range_of_distances = {'Car': [5.0, 100.0],
-                                   'Truck': [8.0, 120.0],
-                                   'Tricar': [5.0, 80.0],
-                                   'Cyclist': [5.0, 80.0],
-                                   'Pedestrian': [5.0, 60.0]}
+        # radial distance range of each classes in a scene, can be set as absolute or relative
+        # -- absolute
+        # self.range_of_distances = {'Car': [5.0, 100.0],
+        #                            'Truck': [8.0, 120.0],
+        #                            'Tricar': [5.0, 80.0],
+        #                            'Cyclist': [5.0, 80.0],
+        #                            'Pedestrian': [5.0, 60.0]}
+        # -- relative
+        self.range_of_distances = {'Car': [-10.0, 10.0],
+                                   'Truck': [-10.0, 10.0],
+                                   'Tricar': [-10.0, 10.0],
+                                   'Cyclist': [-10.0, 10.0],
+                                   'Pedestrian': [-10.0, 10.0]}
 
         # additional random rotation angle range applied to each object
         self.additional_rotation_range = 30.0  # deg
@@ -140,7 +147,8 @@ class SceneGenerator(object):
                 self.object_manipulator.lidar_rotate_and_move_object(
                     rotation_z_angle=random.uniform(0.0, 360.0),
                     radial_distance=random.uniform(self.range_of_distances[class_name][0],
-                                                   self.range_of_distances[class_name][1]))
+                                                   self.range_of_distances[class_name][1]),
+                    absolute_distance=False)
 
                 # -- then rotate and elevate itself
                 self.object_manipulator.self_rotate_and_elevate_object(

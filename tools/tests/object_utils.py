@@ -110,7 +110,7 @@ class ObjectManipulator(object):
         return object
 
     # rotate and move the object in the frame of lidar sensor
-    def lidar_rotate_and_move_object(self, rotation_z_angle=0.0, radial_distance=0.0):
+    def lidar_rotate_and_move_object(self, rotation_z_angle=0.0, radial_distance=0.0, absolute_distance=True):
         # rotate points
         self.object_cloud.rotate(
             o3d.geometry.Geometry3D.get_rotation_matrix_from_xyz([0, 0, np.radians(rotation_z_angle)]), center=False)
@@ -137,9 +137,15 @@ class ObjectManipulator(object):
 
         # -- then move to desired radius
         rotated_xy_normalized = rotated_xy / np.linalg.norm(pre_xy)
-        new_xy = radial_distance * rotated_xy_normalized
-
-        self.object.box3d.location[:2] = new_xy
+        if absolute_distance:
+            new_xy = radial_distance * rotated_xy_normalized
+            self.object.box3d.location[:2] = new_xy
+        else:
+            pre_distance = np.linalg.norm(pre_xy)
+            new_xy = 0.0
+            if radial_distance > -pre_distance:
+                new_xy = rotated_xy + radial_distance * rotated_xy_normalized
+            self.object.box3d.location[:2] = new_xy
 
         # -- finally transform back to current frame
         location_homogeneous = np.append(self.object.box3d.location, 1)
