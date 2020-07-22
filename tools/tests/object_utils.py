@@ -355,6 +355,40 @@ class ObjectManipulator(object):
         return geometries
 
 
+def generate_ego_geometries():
+    geometries = list()
+
+    # add frame
+    frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=2.0, origin=[0, 0, 0])
+    geometries.append(frame)
+
+    # add ego box
+    ego_box = o3d.geometry.TriangleMesh.create_box(width=4.5, height=1.8, depth=1.6)
+    ego_box.compute_vertex_normals()
+    ego_box.paint_uniform_color([0.3, 0.8, 0.0])
+    transformation = np.eye(4)
+    transformation[:3, 3] = [-4.5, -0.9, 0.0]
+    ego_box.transform(transformation)
+    geometries.append(ego_box)
+
+    # add lidar sensor
+    lidar_sensor = o3d.geometry.TriangleMesh.create_cylinder(radius=0.15, height=0.2)
+    lidar_sensor.compute_vertex_normals()
+    lidar_sensor.paint_uniform_color([0.8, 0.0, 0.0])
+    lidar_origin = [-2.87509, -0.00462392, 1.83632]
+    transformation = np.eye(4)
+    transformation[:3, 3] = lidar_origin
+    lidar_sensor.transform(transformation)
+    geometries.append(lidar_sensor)
+
+    # add lidar sensor frame
+    lidar_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5)
+    lidar_frame.transform(transformation)
+    geometries.append(lidar_frame)
+
+    return geometries
+
+
 class Visualizer(object):
 
     def __init__(self):

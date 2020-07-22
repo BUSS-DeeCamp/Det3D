@@ -15,6 +15,7 @@ from det3d.builder import build_voxel_generator, build_target_assigners
 from det3d.models import build_detector
 from det3d.torchie import Config
 from det3d.torchie.trainer import load_checkpoint
+from tools.tests.object_utils import Visualizer, generate_ego_geometries
 
 init_logger()
 
@@ -53,26 +54,6 @@ def box_to_geometries(box3d, labels, color_fade_factor=1.0):
     return geometries
 
 
-def convert_detection_to_geometries(points, box3d, labels):
-    geometries = list()
-
-    # add points first
-    pcs = np.array(points[:, :3])
-    pcobj = o3d.geometry.PointCloud()
-    pcobj.points = o3d.utility.Vector3dVector(pcs)
-    geometries.append(pcobj)
-
-    # add boxes
-    geometries += box_to_geometries(box3d, labels)
-
-    return geometries
-
-
-def visualize_deecamp(points, box3d, labels):
-    geometries = convert_detection_to_geometries(points, box3d, labels)
-    draw_pcs_open3d(geometries)
-
-
 class Deecamp3DDector(object):
 
     def __init__(self, config, model_p, calib_data=None):
@@ -82,6 +63,10 @@ class Deecamp3DDector(object):
         self._init_model()
 
     def _init_model(self):
+        self.points = None
+        self.box3d = None
+        self.labels = None
+
         self.net = build_detector(self.config.model, train_cfg=None, test_cfg=self.config.test_cfg).to(device).eval()
 
         # use mixed precision
@@ -147,7 +132,7 @@ class Deecamp3DDector(object):
 
         # remove points far under the ground
         z_filt = points[:, 2] > -10.0
-        points = points[z_filt, :]
+        self.points = points[z_filt, :]
 
         # make the example
         example = self.load_an_in_example_from_points(points)
@@ -168,11 +153,56 @@ class Deecamp3DDector(object):
 
         # filter results by the confidence score
         idx = np.where(scores > 0.11)[0]
-        box3d = box3d[idx, :]
-        labels = np.take(labels, idx)
-        scores = np.take(scores, idx)
+        self.box3d = box3d[idx, :]
+        self.labels = np.take(labels, idx)
+        self.scores = np.take(scores, idx)
 
-        return points, box3d, labels
+    def convert_detection_to_geometries(self):
+        geometries = list()
+
+        # add points first
+        pcs = np.array(self.points[:, :3])
+        pcobj = o3d.geometry.PointCloud()
+        pcobj.points = o3d.utility.Vector3dVector(pcs)
+        geometries.append(pcobj)
+
+        # add boxes
+        for i in range(self.box3d.shape[0]):
+            # get box info
+            box_location = self.box3d[i, :3]
+            box_dimension = self.box3d[i, 3:6]
+            box_rotation = [0.0, 0.0, self.box3d[i, 6]]
+            box_color = np.asarray(box_colors[self.labels[i]]) * 0.8
+
+            # construct box geometry
+            object_box = o3d.geometry.TriangleMesh.create_box(width=box_dimension[0],
+                                                              height=box_dimension[1],
+                                                              depth=box_dimension[2])
+            object_box.compute_vertex_normals()
+            object_box.paint_uniform_color(box_color)
+            # -- first add bias
+            transformation = np.eye(4)
+            transformation[:3, 3] = -0.5 * box_dimension
+            object_box.transform(transformation)
+            # -- then apply box location
+            transformation[:3, 3] = box_location
+            transformation[:3, :3] = o3d.geometry.TriangleMesh.get_rotation_matrix_from_xyz(box_rotation)
+            object_box.transform(transformation)
+            geometries.append(object_box)
+
+            # construct orientation arrow
+            arrow = o3d.geometry.TriangleMesh.create_arrow(
+                cylinder_radius=0.1, cone_radius=0.2, cylinder_height=box_dimension[0] * 0.6,
+                cone_height=0.5)
+            arrow.paint_uniform_color(box_color)
+            transformation = np.eye(4)
+            transformation[:3, 3] = box_location
+            transformation[:3, :3] = o3d.geometry.Geometry3D.get_rotation_matrix_from_xyz(
+                [np.pi / 2, box_rotation[2] + np.pi / 2, 0])
+            arrow.transform(transformation)
+            geometries.append(arrow)
+
+        return geometries
 
 
 if __name__ == "__main__":
@@ -182,6 +212,23 @@ if __name__ == "__main__":
         config_file = 'examples/second/configs/deepcamp_all_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py'
         config = Config.fromfile(config_file)
         model_file = 'res/latest.pth'
+
+        # create detector
         detector = Deecamp3DDector(config, model_file)
-        points, box3d, labels = detector.predict_on_deecamp_local_file(sys.argv[1])
-        visualize_deecamp(points, box3d, labels)
+
+        # test
+        detector.predict_on_deecamp_local_file(sys.argv[1])
+
+        # visualize
+        vis = Visualizer()
+        geometries = list()
+
+        # -- get detection geometries
+        detection_geometries = detector.convert_detection_to_geometries()
+
+        # -- add ego geometries
+        ego_geometries = generate_ego_geometries()
+
+        geometries.extend(detection_geometries)
+        geometries.extend(ego_geometries)
+        vis.show(geometries)
