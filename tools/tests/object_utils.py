@@ -389,6 +389,41 @@ def generate_ego_geometries():
     return geometries
 
 
+def convert_label_to_geometries(label_data_dict):
+    box_colors = {
+        'Car': [1, 0.5, 0],  # orange
+        'Truck': [1, 0, 1],  # magenta
+        'Tricar': [1, 1, 1],  # white
+        'Cyclist': [0, 1, 0],  # green
+        'Pedestrian': [1, 0, 0],  # red
+        'DontCare': [0.3, 0.3, 0.3]  # gray
+    }
+    geometries = list()
+
+    box3d = label_data_dict['gts']
+    for p in box3d:
+        bbox = o3d.geometry.OrientedBoundingBox(
+            center=p['location'],
+            R=o3d.geometry.OrientedBoundingBox.get_rotation_matrix_from_xyz(p['rotation']),
+            extent=p['dimension'],
+        )
+        bbox.color = box_colors[p['class_name']]
+        geometries.append(bbox)
+
+        # orientation
+        arrow = o3d.geometry.TriangleMesh.create_arrow(
+            cylinder_radius=0.05, cone_radius=0.2, cylinder_height=p['dimension'][0] * 0.8, cone_height=0.5)
+        arrow.paint_uniform_color(box_colors[p['class_name']])
+        transformation = np.identity(4)
+        transformation[:3, 3] = p['location']
+        transformation[:3, :3] = o3d.geometry.OrientedBoundingBox.get_rotation_matrix_from_xyz(
+            [np.pi / 2, p['rotation'][2] + np.pi / 2, 0])
+        arrow.transform(transformation)
+        geometries.append(arrow)
+
+    return geometries
+
+
 class Visualizer(object):
 
     def __init__(self):

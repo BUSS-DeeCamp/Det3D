@@ -1,5 +1,18 @@
 # Tests
 
+## Model evaluator
+
+We provide a tool to show the results of the model inference as well as the labels.
+
+To evaluate a model on multiple `.bin` cloud files, first modify the `config_file` and `model_file` [here](evaluate_with_visualization.py#L18-L19),
+then run:
+
+```bash
+python3 tools/tests/evaluate_with_visualization.py /path/to/cloud/folder [/path/to/label/file]
+```
+
+Note that the label `.txt` file can be given as an option.
+
 ## Ray ground filter
 
 We implement a tool to extract ground and non-ground points by a ray ground filter. 
