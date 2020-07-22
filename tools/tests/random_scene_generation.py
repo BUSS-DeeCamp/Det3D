@@ -231,6 +231,24 @@ class SceneGenerator(object):
         current_box_pcd = o3d.geometry.PointCloud()
         current_box_pcd.points = current_box.get_box_points()
 
+        # check with ego box
+        ego_box = o3d.geometry.OrientedBoundingBox(
+            center=self.object_manipulator.transform_origin_lidar_to_current[:3, 3],
+            R=self.object_manipulator.transform_origin_lidar_to_current[:3, :3],
+            extent=[4.5, 1.8, 1.6],
+        )
+        ego_box_pcd = o3d.geometry.PointCloud()
+        ego_box_pcd.points = ego_box.get_box_points()
+
+        # -- crop and check if containing points each other
+        intersection_points = ego_box_pcd.crop(current_box)
+        if np.asarray(intersection_points.points).shape[0] > 0:
+            return True
+
+        intersection_points = current_box_pcd.crop(ego_box)
+        if np.asarray(intersection_points.points).shape[0] > 0:
+            return True
+
         # check with every previously added box
         for object in self.selected_objects:
             pre_box = o3d.geometry.OrientedBoundingBox(
