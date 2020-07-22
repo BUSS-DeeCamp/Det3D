@@ -28,6 +28,15 @@ class ObjectManipulator(object):
         'DontCare': [0.3, 0.3, 0.3]  # gray
     }
 
+    class_ids = {
+        'Car': 0,
+        'Truck': 1,
+        'Tricar': 2,
+        'Cyclist': 3,
+        'Pedestrian': 4,
+        'DontCare': 5
+    }
+
     def __init__(self):
         self.object = None
         self.class_name = None
@@ -274,7 +283,7 @@ class ObjectManipulator(object):
                  'rotation': self.object.box3d.rotation.tolist(),
                  'dimension': self.object.box3d.dimension.tolist(),
                  'class_name': self.class_name,
-                 'class_id': 0,
+                 'class_id': self.class_ids[self.class_name],
                  'num_points': np.asarray(self.object_cloud.points).shape[0]}
 
         return label
