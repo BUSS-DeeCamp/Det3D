@@ -305,7 +305,7 @@ class SceneGenerator(object):
 
         lidar_mask_buffer[np.ix_(azimuth_index_range, elevation_index_range)] = True
 
-    def add_non_ground_points_to_scene(self, valid_object_indices, non_ground_pcd):
+    def add_background_points_to_scene(self, valid_object_indices, background_pcd):
         # first remove points in objects' boxes
         for valid_object_index in valid_object_indices:
             # construct 3d box
@@ -317,7 +317,7 @@ class SceneGenerator(object):
             )
 
             # crop the object points
-            object_points = non_ground_pcd.crop(bbox)
+            object_points = background_pcd.crop(bbox)
 
             if np.asarray(object_points.points).shape[0] == 0:
                 # no points to remove
@@ -325,23 +325,23 @@ class SceneGenerator(object):
 
             # remove the object with distance threshold
             dist_threshold = 1e-3  # m, it should be very small, since ideally the min distance is 0
-            non_ground_to_object_distance = np.asarray(non_ground_pcd.compute_point_cloud_distance(object_points))
+            non_ground_to_object_distance = np.asarray(background_pcd.compute_point_cloud_distance(object_points))
             remain_points_mask = non_ground_to_object_distance > dist_threshold
             remain_points_indices = np.nonzero(remain_points_mask)
-            non_ground_pcd = non_ground_pcd.select_down_sample(remain_points_indices[0])
+            background_pcd = background_pcd.select_down_sample(remain_points_indices[0])
 
         # then transform to lidar frame
-        non_ground_pcd.transform(self.object_manipulator.transform_current_to_origin_lidar)
+        background_pcd.transform(self.object_manipulator.transform_current_to_origin_lidar)
 
         # then handle the occlusion when add it to buffer using lidar mask created by objects
-        non_ground_points = np.asarray(non_ground_pcd.points)
-        valid_non_ground_points_num = \
-            self.handle_occlusion(non_ground_points, use_lidar_mask=True, update_lidar_mask=False)
+        background_points = np.asarray(background_pcd.points)
+        valid_background_points_num = \
+            self.handle_occlusion(background_points, use_lidar_mask=True, update_lidar_mask=False)
 
-        logging.info('All non-ground points: {}'.format(non_ground_points.shape[0]))
-        logging.info('Valid non-ground points in the scene: {}'.format(valid_non_ground_points_num))
+        logging.info('All background points: {}'.format(background_points.shape[0]))
+        logging.info('Valid background points in the scene: {}'.format(valid_background_points_num))
 
-    def generate_scene(self, data_dict):
+    def generate_scene(self, data_dict, with_ground=True):
 
         self.label_data_dict = data_dict.copy()
 
@@ -359,16 +359,6 @@ class SceneGenerator(object):
 
         # remove objects from the original cloud
         self.remove_original_objects()
-
-        # split ground and non-ground points
-        rgf = RayGroundFilter(refinement_mode='nearest_neighbor')
-        ground_points, non_ground_points = rgf.filter(np.asarray(self.pcd.points))
-
-        non_ground_pcd = o3d.geometry.PointCloud()
-        non_ground_pcd.points = o3d.utility.Vector3dVector(non_ground_points[:, :3])
-
-        # show results for debug
-        # o3d.visualization.draw_geometries([non_ground_pcd])
 
         # randomly select objects
         self.random_select_candidate_objects()
@@ -403,8 +393,23 @@ class SceneGenerator(object):
         logging.info('Valid objects in the scene: {}'.format(len(self.labels_of_valid_objects)))
         logging.info('Objects points in the scene: {}'.format(np.count_nonzero(self.point_distance_buffer > 0)))
 
-        # add the non-ground points
-        self.add_non_ground_points_to_scene(valid_object_indices, non_ground_pcd)
+        if not with_ground:
+            # split ground and non-ground points
+            rgf = RayGroundFilter(refinement_mode='nearest_neighbor')
+            ground_points, non_ground_points = rgf.filter(np.asarray(self.pcd.points))
+
+            non_ground_pcd = o3d.geometry.PointCloud()
+            non_ground_pcd.points = o3d.utility.Vector3dVector(non_ground_points[:, :3])
+
+            # show results for debug
+            # o3d.visualization.draw_geometries([non_ground_pcd])
+
+            # add the non-ground points
+            self.add_background_points_to_scene(valid_object_indices, non_ground_pcd)
+
+        else:
+            # add all background points
+            self.add_background_points_to_scene(valid_object_indices, self.pcd)
 
         # convert points from polar coordinates to XYZ
         scene_points_list = list()
