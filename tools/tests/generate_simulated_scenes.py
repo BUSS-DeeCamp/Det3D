@@ -20,8 +20,14 @@ class Generator(object):
         # save scene cloud to .bin file
         self.sg.save_scene_cloud_to_file()
 
+        # save scene labels to .txt file
+        self.sg.save_scene_labels_to_file()
+
         # get labels for the scene
         scene_labels = self.sg.get_scene_labels()
+
+        # clean
+        self.sg.reset()
 
         return scene_labels
 

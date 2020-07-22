@@ -44,6 +44,26 @@ class SceneGenerator(object):
         self.labels_of_objects = list()
         self.labels_of_valid_objects = list()
 
+        self.object_manipulator = None
+        self.create_object_manipulator()
+
+        # num of each classes in a scene
+        self.num_of_objects = {'Car': 15, 'Truck': 5, 'Tricar': 5, 'Cyclist': 10, 'Pedestrian': 10}
+
+        # radial distance range of each classes in a scene
+        self.range_of_distances = {'Car': [5.0, 100.0],
+                                   'Truck': [8.0, 120.0],
+                                   'Tricar': [5.0, 80.0],
+                                   'Cyclist': [5.0, 80.0],
+                                   'Pedestrian': [5.0, 60.0]}
+
+        # additional random rotation angle range applied to each object
+        self.additional_rotation_range = 30.0  # deg
+
+        # elevation angle range set to each object to control its height
+        self.elevation_angle_range = 2.0  # deg
+
+    def create_object_manipulator(self):
         # configure the object manipulator and the transform between the original lidar frame and current frame
         origin_lidar_rotation = [3.13742, -3.1309, 3.14101]
         origin_lidar_location = [-2.87509, -0.00462392, 1.83632]
@@ -67,28 +87,12 @@ class SceneGenerator(object):
 
         self.object_manipulator.init_lidar_param(ring_index, elevation_angle, azimuth_angle_increment)
 
-        # num of each classes in a scene
-        self.num_of_objects = {'Car': 15, 'Truck': 5, 'Tricar': 5, 'Cyclist': 10, 'Pedestrian': 10}
-
-        # radial distance range of each classes in a scene
-        self.range_of_distances = {'Car': [5.0, 100.0],
-                                   'Truck': [8.0, 120.0],
-                                   'Tricar': [5.0, 80.0],
-                                   'Cyclist': [5.0, 80.0],
-                                   'Pedestrian': [5.0, 60.0]}
-
-        # additional random rotation angle range applied to each object
-        self.additional_rotation_range = 30.0  # deg
-
-        # elevation angle range set to each object to control its height
-        self.elevation_angle_range = 2.0  # deg
-
-    def remove_original_objects(self, data_dict):
+    def remove_original_objects(self):
         self.pcd = o3d.geometry.PointCloud()
         self.pcd.points = o3d.utility.Vector3dVector(self.cloud[:, :3])
 
         # -- iterate for each object
-        objs = data_dict['gts']
+        objs = self.label_data_dict['gts']
         for p in objs:
             # ignore DontCare objects
             if p['class_name'] == 'DontCare':
@@ -104,6 +108,10 @@ class SceneGenerator(object):
             # crop the object points
             object_points = self.pcd.crop(bbox)
 
+            # check if not empty
+            if np.asarray(object_points.points).shape[0] == 0:
+                continue
+
             # remove the object with distance threshold
             dist_threshold = 1e-3  # m, it should be very small, since ideally the min distance is 0
             non_ground_to_object_distance = np.asarray(self.pcd.compute_point_cloud_distance(object_points))
@@ -113,7 +121,7 @@ class SceneGenerator(object):
 
     def random_select_candidate_objects(self):
         class_num = len(self.objects_data)
-        object_id = 0
+        candidate_object_num = 0
 
         for i in range(class_num):
             objs = self.objects_data[i]
@@ -155,8 +163,10 @@ class SceneGenerator(object):
                 self.labels_of_objects.append(self.object_manipulator.get_object_label())
                 
                 # update object id
-                object_id += 1
-                
+                candidate_object_num += 1
+
+        logging.info('Candidate object num: {}'.format(candidate_object_num))
+
     def sort_by_distance(self):
 
         object_list_for_sort = list()
@@ -325,13 +335,13 @@ class SceneGenerator(object):
 
     def generate_scene(self, data_dict):
 
-        self.label_data_dict = data_dict
+        self.label_data_dict = data_dict.copy()
 
         # set output file
         self.output_file_name = Path(data_dict['path']).name
 
         # load cloud data
-        cloud_path = Path(self.cloud_data_folder).joinpath(data_dict['path']).as_posix()
+        cloud_path = Path(self.cloud_data_folder).joinpath(self.label_data_dict['path']).as_posix()
         cloud = np.fromfile(cloud_path, dtype=np.float32)
         cloud = cloud.reshape((-1, 4))
 
@@ -340,7 +350,7 @@ class SceneGenerator(object):
         self.cloud = cloud[z_filt, :]
 
         # remove objects from the original cloud
-        self.remove_original_objects(data_dict)
+        self.remove_original_objects()
 
         # split ground and non-ground points
         rgf = RayGroundFilter(refinement_mode='nearest_neighbor')
@@ -389,6 +399,7 @@ class SceneGenerator(object):
         self.add_non_ground_points_to_scene(valid_object_indices, non_ground_pcd)
 
         # convert points from polar coordinates to XYZ
+        scene_points_list = list()
         for azimuth_index, elevation_index in np.ndindex(self.point_distance_buffer.shape):
 
             # ignore empty buffer
@@ -406,12 +417,9 @@ class SceneGenerator(object):
             z = xyz_range_distance * np.sin(elevation_angle)
 
             # add to buffer
-            if self.scene_points is None:
-                self.scene_points = [[x, y, z]]
-            else:
-                self.scene_points.append([x, y, z])
+            scene_points_list.append([x, y, z])
 
-        self.scene_points = np.array(self.scene_points)
+        self.scene_points = np.array(scene_points_list)
 
         # transform back to current frame
         scene_pcd = o3d.geometry.PointCloud()
@@ -530,6 +538,8 @@ class SceneGenerator(object):
         self.selected_objects = list()
         self.labels_of_objects = list()
         self.labels_of_valid_objects = list()
+
+        self.create_object_manipulator()
 
 
 if __name__ == '__main__':
