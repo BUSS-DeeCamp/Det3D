@@ -138,6 +138,7 @@ class ObjectManipulator(object):
         # -- then move to desired radius
         rotated_xy_normalized = rotated_xy / np.linalg.norm(pre_xy)
         if absolute_distance:
+            radial_distance = max(0, radial_distance)
             new_xy = radial_distance * rotated_xy_normalized
             self.object.box3d.location[:2] = new_xy
         else:
