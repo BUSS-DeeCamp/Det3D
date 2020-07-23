@@ -13,18 +13,17 @@ from tools.tests.ray_ground_filter import RayGroundFilter
 from tools.tests.object_utils import Box, ObjectWithBox, ObjectManipulator, VisualizerSequence
 
 # set seed for debug
-# seed = random.randrange(sys.maxsize)
-seed = 1000
+seed = random.randrange(sys.maxsize)
+# seed = 1000
 random.seed(seed)
 logging.info('Random seed: {}'.format(seed))
 
 
 class SceneGenerator(object):
 
-    def __init__(self, cloud_data_folder, output_folder, objects_data):
+    def __init__(self, cloud_data_folder, output_folder):
         self.cloud_data_folder = cloud_data_folder
         self.output_folder = output_folder
-        self.objects_data = objects_data
 
         self.output_cloud_file = None  # path to save output cloud .bin file
         self.output_label_file = None  # path to save output label .txt file
@@ -126,16 +125,15 @@ class SceneGenerator(object):
             remain_points_indices = np.nonzero(remain_points_mask)
             self.pcd = self.pcd.select_down_sample(remain_points_indices[0])
 
-    def random_select_candidate_objects(self):
-        class_num = len(self.objects_data)
+    def random_select_candidate_objects(self, objects_data):
+        class_num = len(objects_data)
         candidate_object_num = 0
 
         added_object_points_for_collision_test = o3d.geometry.PointCloud()
 
         for i in range(class_num):
-            objs = self.objects_data[i]
-            class_name = objs['class_name']
-            samples = random.sample(objs['objects'], self.num_of_objects[class_name])
+            class_name = objects_data[i]['class_name']
+            samples = random.sample(objects_data[i]['objects'], self.num_of_objects[class_name])
 
             # randomly place the object with polar coordinates
             for sample in samples:
@@ -366,9 +364,9 @@ class SceneGenerator(object):
         logging.info('All background points: {}'.format(background_points.shape[0]))
         logging.info('Valid background points in the scene: {}'.format(valid_background_points_num))
 
-    def generate_scene(self, data_dict, with_ground=True):
+    def generate_scene(self, label_data_dict, objects_data, with_ground=True):
 
-        self.label_data_dict = data_dict.copy()
+        self.label_data_dict = label_data_dict.copy()
 
         # set output file
         self.output_file_name = Path(data_dict['path']).name
@@ -386,7 +384,7 @@ class SceneGenerator(object):
         self.remove_original_objects()
 
         # randomly select objects
-        self.random_select_candidate_objects()
+        self.random_select_candidate_objects(objects_data)
 
         # sort objects by radial distance, in order to add object from close to far
         self.sort_by_distance()
@@ -584,7 +582,7 @@ if __name__ == '__main__':
 
     data_folder = '/home/data/deecamp/DeepCamp_Lidar'
     objects_folder = '/home/data/deecamp/DeepCamp_Lidar/objects'
-    label_file = Path(data_folder).joinpath('labels_filer/val_filter.txt')
+    label_file = Path(data_folder).joinpath('labels_filer/train_filter.txt')
 
     output_scenes_folder = Path(data_folder).joinpath('sim_scenes')
     output_scenes_folder.mkdir(exist_ok=True)
@@ -606,7 +604,7 @@ if __name__ == '__main__':
     logging.info('Total labeled scenes: {}'.format(len(labels)))
 
     # create scene generator
-    sg = SceneGenerator(data_folder, output_scenes_folder, objects_data)
+    sg = SceneGenerator(data_folder, output_scenes_folder)
 
     # create visualizer
     vis = VisualizerSequence()
@@ -617,8 +615,16 @@ if __name__ == '__main__':
 
         logging.info("Scene #{}".format(scene_num))
 
+        # select a subset of all objects
+        objects_data_subset = list()
+        subset_size = 50
+        for i in range(len(objects_data)):
+            class_name = objects_data[i]['class_name']
+            samples = random.sample(objects_data[i]['objects'], subset_size)
+            objects_data_subset.append({'class_name': class_name, 'objects': samples})
+
         # generate a scene
-        sg.generate_scene(data_dict)
+        sg.generate_scene(data_dict, objects_data_subset)
 
         # save scene cloud to .bin file
         sg.save_scene_cloud_to_file()
