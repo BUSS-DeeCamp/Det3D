@@ -130,7 +130,7 @@ class SceneGenerator(object):
         candidate_object_num = 0
 
         added_object_points_for_collision_test = o3d.geometry.PointCloud()
-
+        logging.info('Random selecting candidate objects...')
         for i in range(class_num):
             class_name = objects_data[i]['class_name']
             samples = random.sample(objects_data[i]['objects'], self.num_of_objects[class_name])
@@ -369,7 +369,7 @@ class SceneGenerator(object):
         self.label_data_dict = label_data_dict.copy()
 
         # set output file
-        self.output_file_name = Path(data_dict['path']).name
+        self.output_file_name = Path(label_data_dict['path']).name
 
         # load cloud data
         cloud_path = Path(self.cloud_data_folder).joinpath(self.label_data_dict['path']).as_posix()
@@ -401,8 +401,8 @@ class SceneGenerator(object):
         # -- create lidar mask for handling occlusion of objects. True means occupied by objects
         self.lidar_mask_buffer = np.full((azimuth_angle_num, elevation_angle_num), False)
 
+        logging.info('Adding objects...')
         valid_object_indices = list()
-
         for i in range(len(self.selected_objects)):
             object = self.selected_objects[i]
             valid_points_num_threshold = 50
