@@ -130,6 +130,8 @@ class SceneGenerator(object):
         class_num = len(self.objects_data)
         candidate_object_num = 0
 
+        added_object_points_for_collision_test = o3d.geometry.PointCloud()
+
         for i in range(class_num):
             objs = self.objects_data[i]
             class_name = objs['class_name']
@@ -156,7 +158,8 @@ class SceneGenerator(object):
                     elevation_angle=random.uniform(-self.elevation_angle_range, self.elevation_angle_range))
 
                 # -- then check if collision happens with previous boxes
-                if self.check_box_collision(self.object_manipulator.object.box3d):
+                if self.check_box_collision(self.object_manipulator.object.box3d,
+                                            added_object_points_for_collision_test):
                     continue
 
                 # -- finally resample with the lidar
@@ -166,6 +169,11 @@ class SceneGenerator(object):
 
                 # add object to list
                 self.selected_objects.append({'class_name': class_name, 'object_data': self.object_manipulator.object})
+
+                # debug
+                # object_pcd = o3d.geometry.PointCloud()
+                # object_pcd.points = o3d.utility.Vector3dVector(self.object_manipulator.object.cloud_points)
+                # o3d.visualization.draw_geometries([object_pcd])
                 
                 # add label to the object
                 self.labels_of_objects.append(self.object_manipulator.get_object_label())
@@ -221,52 +229,51 @@ class SceneGenerator(object):
 
         return valid_points_num
 
-    def check_box_collision(self, box3d):
+    def check_box_collision(self, box3d, added_objects_points):
         # construct open3d box
         current_box = o3d.geometry.OrientedBoundingBox(
             center=box3d.location,
             R=o3d.geometry.OrientedBoundingBox.get_rotation_matrix_from_xyz(box3d.rotation),
             extent=box3d.dimension,
         )
+
+        # check with previously added box points
+        if np.asarray(added_objects_points.points).shape[0] > 0:
+            intersection_points = added_objects_points.crop(current_box)
+            if np.asarray(intersection_points.points).shape[0] > 0:
+                return True
+
+        # randomly generate points of current box
         current_box_pcd = o3d.geometry.PointCloud()
-        current_box_pcd.points = current_box.get_box_points()
+        step = 0.2
+        box_points = np.mgrid[-0.5 * box3d.dimension[0]:0.5 * box3d.dimension[0]:step,
+                              -0.5 * box3d.dimension[1]:0.5 * box3d.dimension[1]:step,
+                              -0.5 * box3d.dimension[2]:0.5 * box3d.dimension[2]:step].T.reshape(-1, 3)
+        current_box_pcd.points = o3d.utility.Vector3dVector(box_points)
+        # -- transform with box's location and rotation
+        transformation = np.eye(4)
+        transformation[:3, :3] = o3d.geometry.OrientedBoundingBox.get_rotation_matrix_from_xyz(box3d.rotation)
+        transformation[:3, 3] = box3d.location
+        current_box_pcd.transform(transformation)
 
         # check with ego box
         ego_box = o3d.geometry.OrientedBoundingBox(
             center=self.object_manipulator.transform_origin_lidar_to_current[:3, 3],
             R=self.object_manipulator.transform_origin_lidar_to_current[:3, :3],
-            extent=[4.5, 1.8, 1.6],
+            extent=np.array([4.5, 1.8, 1.6]) * 1.2,
         )
-        ego_box_pcd = o3d.geometry.PointCloud()
-        ego_box_pcd.points = ego_box.get_box_points()
-
-        # -- crop and check if containing points each other
-        intersection_points = ego_box_pcd.crop(current_box)
-        if np.asarray(intersection_points.points).shape[0] > 0:
-            return True
-
+        # -- crop and check if intersecting
         intersection_points = current_box_pcd.crop(ego_box)
         if np.asarray(intersection_points.points).shape[0] > 0:
             return True
 
-        # check with every previously added box
-        for object in self.selected_objects:
-            pre_box = o3d.geometry.OrientedBoundingBox(
-                center=object['object_data'].box3d.location,
-                R=o3d.geometry.OrientedBoundingBox.get_rotation_matrix_from_xyz(object['object_data'].box3d.rotation),
-                extent=object['object_data'].box3d.dimension,
-            )
-            pre_box_pcd = o3d.geometry.PointCloud()
-            pre_box_pcd.points = pre_box.get_box_points()
+        # debug
+        # current_box_pcd.paint_uniform_color([1.0, 0.0, 0.0])
+        # added_objects_points.paint_uniform_color([0.0, 1.0, 0.0])
+        # o3d.visualization.draw_geometries([current_box_pcd, added_objects_points])
 
-            # crop and check if containing points each other
-            intersection_points = pre_box_pcd.crop(current_box)
-            if np.asarray(intersection_points.points).shape[0] > 0:
-                return True
-
-            intersection_points = current_box_pcd.crop(pre_box)
-            if np.asarray(intersection_points.points).shape[0] > 0:
-                return True
+        # add points of current box to previous cloud
+        added_objects_points += current_box_pcd
 
         return False
 
