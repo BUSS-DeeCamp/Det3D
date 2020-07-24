@@ -9,7 +9,8 @@ from loguru import logger as logging
 
 init_logger()
 
-from tools.tests.test_a_bin_file import Deecamp3DDector, convert_detection_to_geometries, box_colors, box_to_geometries
+from tools.tests.test_a_bin_file import Deecamp3DDector, box_colors, box_to_geometries
+from tools.tests.object_utils import VisualizerContinuous, generate_ego_geometries
 
 
 class SimpleTrackObject(object):
@@ -180,34 +181,15 @@ class SimpleTracker(object):
         self.objects = [self.objects[i] for i in alive_list]
 
 
-def key_callback_to_quit(vis):
-    quit()
-
-
-def config_visualizer(vis):
-    opt = vis.get_render_option()
-    opt.background_color = np.asarray([0, 0, 0])
-    opt.point_size = 1
-
-    vc = vis.get_view_control()
-    camera_parameters = vc.convert_to_pinhole_camera_parameters()
-    camera_parameters.extrinsic = np.array(
-        [[1., 0., 0., 0.],
-         [0., 1., 0., 0.],
-         [0., 0., 1., 100.],
-         [0., 0., 0., 1.]])
-    vc.convert_from_pinhole_camera_parameters(camera_parameters)
-    vc.set_constant_z_far(10000.0)
-    vc.set_constant_z_near(0.1)
-
-
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         logging.error('Please give a path to a folder including cloud .bin files as the argument.')
     else:
-        config_file = 'examples/second/configs/deepcamp_all_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py'
+        # config_file = 'examples/second/configs/deepcamp_all_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py'
+        config_file = 'res/20200717-voxel-0.12-0.12-0.1/deepcamp_all_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py'
         config = Config.fromfile(config_file)
-        model_file = 'res/latest.pth'
+        # model_file = 'res/latest.pth'
+        model_file = 'res/20200717-voxel-0.12-0.12-0.1/latest.pth'
         data_folder = sys.argv[1]
 
         # collect cloud files
@@ -227,51 +209,42 @@ if __name__ == "__main__":
         tracker_initialized = False
 
         # create visualizer
-        vis = o3d.visualization.VisualizerWithKeyCallback()
-        vis.register_key_callback(key=ord("Q"), callback_func=key_callback_to_quit)
-        logging.info('Press Q to exit.')
-        vis.create_window()
+        vis = VisualizerContinuous()
 
         # start to detect & track
         timestamp = 0
         for cloud_file in cloud_files:
 
             # detect
-            points, boxes, labels = detector.predict_on_deecamp_local_file(cloud_file)
+            detector.predict_on_deecamp_local_file(cloud_file)
 
             # track
             if not tracker.initialized:
-                for box, label in zip(boxes, labels):
+                for box, label in zip(detector.box3d, detector.labels):
                     obj = SimpleTrackObject(timestamp, box, label)
                     tracker.add_object(obj)
 
                 tracker.initialized = True
 
             else:
-                for box, label in zip(boxes, labels):
+                for box, label in zip(detector.box3d, detector.labels):
                     tracker.update_object(timestamp, box, label)
 
             tracker.refresh(timestamp)  # make motion prediction and remove those objects which are dead
 
             # visualization
-            vis.clear_geometries()
-
             # -- get geometries
-            detection_geometries = convert_detection_to_geometries(points, boxes, labels)
+            detection_geometries = detector.convert_detection_to_geometries()
             tracking_geometries = tracker.get_geometries_for_visualization()
+            ego_geometries = generate_ego_geometries()
 
-            # -- add geometries
-            for g in detection_geometries:
-                vis.add_geometry(g)
+            geometries = list()
+            geometries.extend(detection_geometries)
+            geometries.extend(tracking_geometries)
+            geometries.extend(ego_geometries)
 
-            for g in tracking_geometries:
-                vis.add_geometry(g)
-
-            # -- set config of visualizer
-            config_visualizer(vis)
-
-            vis.poll_events()
-            vis.update_renderer()
+            # -- show
+            vis.show(geometries)
 
             timestamp += 1
 

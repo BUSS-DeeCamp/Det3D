@@ -514,3 +514,115 @@ class VisualizerSequence(Visualizer):
     def update_camera_param(self):
         vc = self.vis.get_view_control()
         vc.convert_from_pinhole_camera_parameters(self.camera_parameters)
+
+
+class VisualizerContinuous(Visualizer):
+
+    def __init__(self):
+
+        Visualizer.__init__(self)
+        self.vis.register_key_callback(key=ord("N"), callback_func=self.switch_to_next)
+        self.vis.register_key_callback(key=ord("S"), callback_func=self.switch_mode)
+        self.vis.register_key_callback(key=ord("V"), callback_func=self.switch_view)
+        print('Press N to next, S to switch between continuous and stepping mode, '
+              'V to switch between bird\'s-eye view and first-person view.')
+
+        self.next = False
+        self.continuous = True
+        self.bird_eye_view = True
+        self.camera_parameters = None
+
+    def show(self, geometries):
+
+        self.vis.clear_geometries()
+
+        # add frame
+        frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=2.0, origin=[0, 0, 0])
+        geometries.append(frame)
+
+        # add geometries
+        for g in geometries:
+            self.vis.add_geometry(g)
+
+        # configure view
+        self.config_visualizer()
+
+        if self.camera_parameters is None:
+            # set initial view
+            self.set_bird_eye_view()
+        else:
+            self.update_camera_param()
+
+        # check running mode: continuous or stepping
+        if self.continuous:
+            self.vis.poll_events()
+            self.vis.update_renderer()
+            time.sleep(0.01)
+        else:
+            # wait for the next
+            self.next = False
+            while not self.next:
+                self.vis.poll_events()
+                self.vis.update_renderer()
+                time.sleep(0.01)
+                if self.continuous:
+                    break
+
+    def switch_to_next(self, vis):
+        # backup camera settings
+        vc = self.vis.get_view_control()
+        self.camera_parameters = vc.convert_to_pinhole_camera_parameters()
+
+        # set flag
+        self.next = True
+
+    def switch_mode(self, vis):
+        self.continuous = not self.continuous
+        info_str = 'continuous mode' if self.continuous else 'stepping mode'
+        print('Change to {}'.format(info_str))
+
+        # backup camera settings
+        vc = self.vis.get_view_control()
+        self.camera_parameters = vc.convert_to_pinhole_camera_parameters()
+
+    def switch_view(self, vis):
+        self.bird_eye_view = not self.bird_eye_view
+
+        if self.bird_eye_view:
+            self.set_bird_eye_view()
+        else:
+            self.set_first_person_view()
+
+        vc = self.vis.get_view_control()
+        self.camera_parameters = vc.convert_to_pinhole_camera_parameters()
+
+        info_str = 'bird\'s-eye view' if self.bird_eye_view else 'first-person view'
+        print('Change to {}'.format(info_str))
+
+    def set_first_person_view(self):
+        vc = self.vis.get_view_control()
+        camera_parameters = vc.convert_to_pinhole_camera_parameters()
+        camera_parameters.extrinsic = np.array(
+            [[-0.020297604953704428, -0.99975332904572722, 0.0090160021700043148, -0.54986592192963379],
+             [-0.54230530269971089, 0.0034333306911491562, -0.84017448836782715, 8.2675302464648972],
+             [0.83993628680806409, -0.021942955643016331, -0.54224122012323117, 30.936190862810335],
+             [0., 0., 0., 1.]])
+        vc.convert_from_pinhole_camera_parameters(camera_parameters)
+        vc.set_constant_z_far(10000.0)
+        vc.set_constant_z_near(0.1)
+
+    def set_bird_eye_view(self):
+        vc = self.vis.get_view_control()
+        camera_parameters = vc.convert_to_pinhole_camera_parameters()
+        camera_parameters.extrinsic = np.array(
+            [[1., 0., 0., 0.],
+             [0., -1., 0., 0.],
+             [0., 0., -1., 100.],
+             [0., 0., 0., 1.]])
+        vc.convert_from_pinhole_camera_parameters(camera_parameters)
+        vc.set_constant_z_far(10000.0)
+        vc.set_constant_z_near(0.1)
+
+    def update_camera_param(self):
+        vc = self.vis.get_view_control()
+        vc.convert_from_pinhole_camera_parameters(self.camera_parameters)
