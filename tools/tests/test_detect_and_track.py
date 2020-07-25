@@ -15,12 +15,11 @@ from tools.tests.object_utils import VisualizerContinuous, generate_ego_geometri
 
 class SimpleTrackObject(object):
 
-    def __init__(self, timestamp, box, label, distance_thresh=5.0, window_size=15, life_period=5):
+    def __init__(self, timestamp, box, label, window_size=15, life_period=5):
         self.label = label
         self.timestamp = timestamp
         self.last_measurement_timestamp = timestamp
 
-        self.distance_thresh = distance_thresh
         self.window_size = window_size
         self.life_period = life_period
 
