@@ -153,6 +153,10 @@ def load_checkpoint(model, filename, map_location=None, strict=False, logger=Non
     else:
         if not osp.isfile(filename):
             raise IOError("{} is not a checkpoint file".format(filename))
+        if torch.cuda.is_available():
+            map_location=lambda storage, loc: storage.cuda()
+        else:
+            map_location='cpu'
         checkpoint = torch.load(filename, map_location=map_location)
     # get state_dict from checkpoint
     if isinstance(checkpoint, OrderedDict):
