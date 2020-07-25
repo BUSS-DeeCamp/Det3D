@@ -247,5 +247,3 @@ if __name__ == "__main__":
             vis.show(geometries)
 
             timestamp += 1
-
-        vis.destroy_window()
